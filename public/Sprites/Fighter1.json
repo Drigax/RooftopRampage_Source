@@ -1270,6 +1270,62 @@
     "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
     "sourceSize": { "w": 32, "h": 32 },
     "duration": 100
+   },
+   "Fighter1 159.aseprite": {
+    "frame": { "x": 224, "y": 608, "w": 32, "h": 32 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
+    "duration": 100
+   },
+   "Fighter1 160.aseprite": {
+    "frame": { "x": 0, "y": 640, "w": 32, "h": 32 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
+    "duration": 100
+   },
+   "Fighter1 161.aseprite": {
+    "frame": { "x": 32, "y": 640, "w": 32, "h": 32 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
+    "duration": 100
+   },
+   "Fighter1 162.aseprite": {
+    "frame": { "x": 64, "y": 640, "w": 32, "h": 32 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
+    "duration": 100
+   },
+   "Fighter1 163.aseprite": {
+    "frame": { "x": 96, "y": 640, "w": 32, "h": 32 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
+    "duration": 100
+   },
+   "Fighter1 164.aseprite": {
+    "frame": { "x": 128, "y": 640, "w": 32, "h": 32 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
+    "duration": 100
+   },
+   "Fighter1 165.aseprite": {
+    "frame": { "x": 160, "y": 640, "w": 32, "h": 32 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 32, "h": 32 },
+    "sourceSize": { "w": 32, "h": 32 },
+    "duration": 100
    }
  },
  "meta": {
@@ -1277,7 +1333,7 @@
   "version": "1.2.21-x64",
   "image": "Fighter1.png",
   "format": "RGBA8888",
-  "size": { "w": 256, "h": 640 },
+  "size": { "w": 256, "h": 672 },
   "scale": "1",
   "frameTags": [
    { "name": "Idle", "from": 0, "to": 17, "direction": "forward" },
@@ -1302,7 +1358,13 @@
    { "name": "Dash-Gun", "from": 142, "to": 148, "direction": "forward" },
    { "name": "Shoot-Gun", "from": 149, "to": 152, "direction": "forward" },
    { "name": "JumpShoot-Gun", "from": 153, "to": 156, "direction": "forward" },
-   { "name": "Hit-Gun", "from": 157, "to": 157, "direction": "forward" }
+   { "name": "Hit-Gun", "from": 157, "to": 157, "direction": "forward" },
+   { "name": "Switch-Gun", "from": 158, "to": 164, "direction": "forward" }
+  ],
+  "layers": [
+   { "name": "Silouette", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
   ]
  }
 }
