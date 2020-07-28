@@ -1,27 +1,37 @@
 import { FreeCamera, TargetCamera, SceneLoader, SpriteManager, Sprite, DeviceSourceManager, DeviceSource, DeviceType, DualShockInput, DualShockButton, SwitchInput, XboxInput, GenericController } from "@babylonjs/core";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
+import { Ray } from "@babylonjs/core/Culling"
 import { Engine } from "@babylonjs/core/Engines/engine";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Color4 } from "@babylonjs/core/Maths/math.color";
 import { IDisposable, Scene } from "@babylonjs/core/scene";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
+import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight"
 import "@babylonjs/loaders/glTF"
 import "@babylonjs/inspector";
 
 class AnimationStateBase {
+    player: Player;
     spritePlayer: Sprite;
     from: number; /* what "frame" on our spritesheet does this start at? */
     to: number; /* what "frame" on our spritesheet does this end at? */
     speed: number; /* how long in ms is each frame of this animation? */
+    reverse: boolean; /* should we play this animation in reverse? */
     loop: boolean; /* should this animation loop? */
     onAnimationEnd: () => void = () => {}; /* do we want to define a callback for this animation finishing? */
     canCancelAfter: number; /* when can the player cancel this animation into a dash animation? */
     update () {};
     start () {};
     stop () {};
+    doesMovement: boolean;
     doMovement() {};
     public playAnimation () {
-        this.spritePlayer.playAnimation(this.from, this.to, this.loop, this.speed, this.onAnimationEnd);
+        if (this.reverse) {
+            this.spritePlayer.playAnimation(this.to, this.from, this.loop, this.speed, this.onAnimationEnd);
+        } else {
+            this.spritePlayer.playAnimation(this.from, this.to, this.loop, this.speed, this.onAnimationEnd);
+        }
     }
 }
 
@@ -51,7 +61,7 @@ class Player implements IDisposable{
 
     /* input variables */
     private _deviceSource: DeviceSource<any>;
-    private _moveInput: Vector2 = new Vector2();
+    private _moveInput: Vector3 = new Vector3();
     private _jumpInput: boolean;
     private _dashInput: boolean;
     private _lightAttackInput: boolean;
@@ -71,21 +81,28 @@ class Player implements IDisposable{
     private _ammoCount: number;
     private _currentAnimation: AnimationState;
     private _flipped: boolean = false; /* true means that the player is facing left (-X), false means the player is facing right (+X) */
+    private _gunDrawn: boolean = false;
 
     /* physics related variables */
-    private _gravity: Vector2;
-    private _groundRaycastDirection: Vector2;
-    private _wallRaycastDirection: Vector2;
-    private _knockbackDirection: Vector2;
+    private _gravity: Vector3 = new Vector3(0, -3, 0);
+    private _groundRaycastDirection: Vector3 = new Vector3(0, -1, 0);
+    private _groundRaycastOffset: Vector3 =  new Vector3(0, 0.2, 0);
+    private _groundRaycastLength: number = 0.2;
+    private _wallRaycastDirections: Vector3[] = [new Vector3(-1, 0, 0), new Vector3(1, 0, 0)];
+    private _knockbackDirection: Vector3 = new Vector3();
     private _wallCollider: Mesh;
     private _hurtboxes: Mesh[];
     private _hitboxes: Mesh[];
 
     /* movement related variables */
-    private _moveSpeed: number;
-    private _dashSpeed: number;
-    private _dashTimer: number;
-    private _dashTimeMax: number;
+    private _velocity: Vector3 = new Vector3(); /* Current world-space velocity */
+    private _moveSpeed: number = 3;
+    private _jumpSpeed: number = 3;
+    private _jumpTimer: number = 0.4;
+    private _jumpTimerElapsed: number = 0;
+    private _dashSpeed: number = 8;
+    private _dashTimer: number = 0.25;
+    private _dashTimerElapsed: number = 0;
 
     /* Animation variables */
     private _spritePlayer: Sprite;
@@ -104,6 +121,8 @@ class Player implements IDisposable{
     private _hitGunAnimation: AnimationState = new AnimationState();
     private _landGunAnimation: AnimationState = new AnimationState();
     private _dashGunAnimation: AnimationState = new AnimationState();
+    private _switchGunAnimation: AnimationState = new AnimationState();
+    private _switchGunReverseAnimation: AnimationState = new AnimationState();
 
     /* Attack variables */
     private _light1Attack: Attack = new Attack();
@@ -134,11 +153,21 @@ class Player implements IDisposable{
     private _init(): Promise<any> {
         const promises: Promise<any>[] = []
         this._transform = new TransformNode(this._getPlayerName(), this._scene);
-
+        this._transform.rotate(Vector3.Up(), 2*Math.PI); /* manually rotate the player so we use TransformNode.rotationQuaternion instead of TranformNode.rotation */
+        this._setupColliders()
         promises.push(this._setupAnimations());
         return Promise.all(promises).then(() => {
+            this.reset();
             return Promise.resolve();
         });
+    }
+
+    public reset(startPosition: Vector3 = Vector3.Zero()) {
+        this._changeAnimationState(this._idleAnimation);
+        this._gunDrawn = false;
+        this._transform.position.copyFrom(startPosition);
+        /* this._ammo = this._maxAmmo */
+        /* this._health = this._maxHealth;*/
     }
 
     /* Animations */
@@ -150,7 +179,8 @@ class Player implements IDisposable{
                  sake of implementation complexity, I decided to statically define
                  the animation and state logic. */
 
-        /* idle frame data and transition logic */
+        /* idle frame data and state logic */
+        this._idleAnimation.player = this;
         this._idleAnimation.spritePlayer = this._spritePlayer;
         this._idleAnimation.from = 0;
         this._idleAnimation.to = 17;
@@ -159,13 +189,95 @@ class Player implements IDisposable{
         this._idleAnimation.loop = true;
         this._idleAnimation.start = function () {
             this.playAnimation();
+            this.player._canMove = true;
+            this.player._canJump = true;
+            this.player._canBeHit = true;
+            this.player._canWallRun = false;
             console.log("entering idle state");
         };
         this._idleAnimation.stop = function () {
             console.log("leaving idle state");
         }
 
-        /* moveAnimation */
+        /* idle (with gun drawn) frame data and state logic */
+        this._idleGunAnimation.player = this;
+        this._idleGunAnimation.spritePlayer = this._spritePlayer;
+        this._idleGunAnimation.from = 88;
+        this._idleGunAnimation.to = 105;
+        this._idleGunAnimation.speed = 100;
+        this._idleGunAnimation.canCancelAfter = 0;
+        this._idleGunAnimation.loop = true;
+        this._idleGunAnimation.start = function () {
+            this.playAnimation();
+            this.player._canMove = true;
+            this.player._canJump = true;
+            this.player._canBeHit = true;
+            this.player._canWallRun = false;
+            console.log("entering idle-gun state");
+        };
+        this._idleGunAnimation.stop = function () {
+            console.log("leaving idle-gun state");
+        }
+
+        /* switch from hand-to-hand to gun-drawn player states */
+        this._switchGunAnimation.player = this;
+        this._switchGunAnimation.spritePlayer = this._spritePlayer;
+        this._switchGunAnimation.from = 158;
+        this._switchGunAnimation.to = 164;
+        this._switchGunAnimation.speed = 100;
+        this._switchGunAnimation.canCancelAfter = 0;
+        this._switchGunAnimation.loop = false;
+        this._switchGunAnimation.start = function () {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canJump = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = false;
+            console.log("entering switch-gun state");
+        };
+        this._switchGunAnimation.doesMovement = true;
+        this._switchGunAnimation.doMovement = () => {
+            this._velocity.copyFromFloats(0, 0, 0);
+        }
+        this._switchGunAnimation.onAnimationEnd = () => {
+            this._gunDrawn = !this._gunDrawn;
+            this._changeAnimationState(this._idleGunAnimation);
+        }
+        this._switchGunAnimation.stop = function () {
+            console.log("leaving switch-gun state");
+        }
+
+        /* switch from gun-drawn to hand-to-hand  player states */
+        this._switchGunReverseAnimation.player = this;
+        this._switchGunReverseAnimation.spritePlayer = this._spritePlayer;
+        this._switchGunReverseAnimation.from = 158;
+        this._switchGunReverseAnimation.to = 164;
+        this._switchGunReverseAnimation.speed = 100;
+        this._switchGunReverseAnimation.canCancelAfter = 0;
+        this._switchGunReverseAnimation.reverse = true;
+        this._switchGunReverseAnimation.loop = false;
+        this._switchGunReverseAnimation.start = function () {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canJump = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = false;
+            console.log("entering switch-gun state");
+        };
+        this._switchGunReverseAnimation.doesMovement = true;
+        this._switchGunReverseAnimation.doMovement = () => {
+            this._velocity.copyFromFloats(0, 0, 0);
+        }
+        this._switchGunReverseAnimation.onAnimationEnd = () => {
+            this._gunDrawn = !this._gunDrawn;
+            this._changeAnimationState(this._idleAnimation);
+        }
+        this._switchGunReverseAnimation.stop = function () {
+            console.log("leaving switch-gun state");
+        }
+
+        /* running animation frame data and state logic */
+        this._runAnimation.player = this;
         this._runAnimation.spritePlayer = this._spritePlayer;
         this._runAnimation.from = 18;
         this._runAnimation.to = 27;
@@ -174,6 +286,10 @@ class Player implements IDisposable{
         this._runAnimation.loop = true;
         this._runAnimation.start = function () {
             this.playAnimation();
+            this.player._canMove = true;
+            this.player._canJump = true;
+            this.player._canBeHit = true;
+            this.player._canWallRun = false;
             console.log("entering run state");
         };
         this._runAnimation.update = () => {
@@ -186,9 +302,126 @@ class Player implements IDisposable{
             console.log("leaving run state");
         }
 
+        /* running (with gun drawn) animation frame data and state logic */
+        this._runGunAnimation.player = this;
+        this._runGunAnimation.spritePlayer = this._spritePlayer;
+        this._runGunAnimation.from = 106;
+        this._runGunAnimation.to = 115;
+        this._runGunAnimation.speed = 100;
+        this._runGunAnimation.canCancelAfter = 0;
+        this._runGunAnimation.loop = true;
+        this._runGunAnimation.start = function () {
+            this.playAnimation();
+            this.player._canMove = true;
+            this.player._canJump = true;
+            this.player._canBeHit = true;
+            this.player._canWallRun = false;
+            console.log("entering run-gun state");
+        };
+        this._runGunAnimation.update = () => {
+            if (this._moveInput.x > 0 && this._flipped ||
+                this._moveInput.x < 0 && !this._flipped ) {
+                    this._flip();
+            }
+        }
+        this._runGunAnimation.stop = function () {
+            console.log("leaving run-gun state");
+        }
+
+        /* Jump animation frame data and state logic */
+        this._jumpAnimation.player = this;
+        this._jumpAnimation.spritePlayer = this._spritePlayer;
+        this._jumpAnimation.from = 28;
+        this._jumpAnimation.to = 36;
+        this._jumpAnimation.speed = 100;
+        this._jumpAnimation.canCancelAfter = 0;
+        this._jumpAnimation.loop = false;
+        this._jumpAnimation.start = function () {
+            this.playAnimation();
+            this.player._canMove = true;
+            this.player._canJump = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = true;
+            console.log("entering jump state");
+            this.player._jumpTimerElapsed = this.player._jumpTimer;
+        };
+        this._jumpAnimation.update = () => {
+            if (true){
+                console.log("engine.getDeltaTime():" + this._scene.getEngine().getDeltaTime()/1000);
+                console.log ("_jumpTimerElapsed : " + this._jumpTimerElapsed);
+            }
+            this._jumpTimerElapsed -= this._scene.getEngine().getDeltaTime()/1000;
+        }
+        this._jumpAnimation.stop = function () {
+            console.log("leaving jump state");
+        }
+
+        /* Jump animation (with gun drawn) frame data and state logic */
+        this._jumpGunAnimation.player = this;
+        this._jumpGunAnimation.spritePlayer = this._spritePlayer;
+        this._jumpGunAnimation.from = 116;
+        this._jumpGunAnimation.to = 124;
+        this._jumpGunAnimation.speed = 100;
+        this._jumpGunAnimation.canCancelAfter = 0;
+        this._jumpGunAnimation.loop = false;
+        this._jumpGunAnimation.start = function () {
+            this.playAnimation();
+            this.player._canMove = true;
+            this.player._canJump = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = true;
+            console.log("entering jump-gun state");
+            this.player._jumpTimerElapsed = this.player._jumpTimer;
+        };
+        this._jumpGunAnimation.update = () => {
+            this._jumpTimerElapsed -= this._scene.getEngine().getDeltaTime()/1000;
+        }
+        this._jumpGunAnimation.stop = function () {
+            console.log("leaving jump-gun state");
+        }
+
+        /* Fall animation frame data and state logic */
+        this._fallAnimation.player = this;
+        this._fallAnimation.spritePlayer = this._spritePlayer;
+        this._fallAnimation.from = 36;
+        this._fallAnimation.to = 48;
+        this._fallAnimation.speed = 100;
+        this._fallAnimation.canCancelAfter = 0;
+        this._fallAnimation.loop = false;
+        this._fallAnimation.start = function () {
+            this.playAnimation();
+            this.player._canMove = true;
+            this.player._canJump = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = true;
+            console.log("entering fall state");
+        };
+        this._fallAnimation.stop = function () {
+            console.log("leaving fall state");
+        }
+
+
+        /* Fall animation (with gun drawn) frame data and state logic */
+        this._fallGunAnimation.player = this;
+        this._fallGunAnimation.spritePlayer = this._spritePlayer;
+        this._fallGunAnimation.from = 124;
+        this._fallGunAnimation.to = 136;
+        this._fallGunAnimation.speed = 100;
+        this._fallGunAnimation.canCancelAfter = 0;
+        this._fallGunAnimation.loop = false;
+        this._fallGunAnimation.start = function () {
+            this.playAnimation();
+            this.player._canMove = true;
+            this.player._canJump = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = true;
+            console.log("entering fall-gun state");
+        };
+        this._fallGunAnimation.stop = function () {
+            console.log("leaving fall-gun state");
+        }
+
         /* */
-        //_runAnimation: AnimationState = new AnimationState();
-        //_jumpAnimation: AnimationState = new AnimationState();
         //_fallAnimation: AnimationState = new AnimationState();
         //_hitAnimation: AnimationState = new AnimationState();
         //_landAnimation: AnimationState = new AnimationState();
@@ -224,6 +457,7 @@ class Player implements IDisposable{
     /* Frame Update */
     private _onBeforeRender() {
         this._updateInput();
+        this._checkColliders();
         this._doStateTransition();
         this._doMovement();
     }
@@ -241,16 +475,34 @@ class Player implements IDisposable{
     private _updateInput(): void {
         switch(this._deviceSource.deviceType) {
             case DeviceType.Keyboard:
-                this._moveInput.copyFromFloats(this._deviceSource.getInput(68) - this._deviceSource.getInput(65),  // D = X+, A = X-
-                                               this._deviceSource.getInput(87) - this._deviceSource.getInput(83)); // W = Y+, S = Y-
-                this._jumpInput = this._deviceSource.getInput(32) != 0; // jump = space
-                this._dashInput = this._deviceSource.getInput(16) != 0; // dash = shift
-                this._lightAttackInput = this._deviceSource.getInput(74) != 0; // light attack = J
-                this._heavyAttackInput = this._deviceSource.getInput(75) != 0; // heavy attack = K
-                this._switchGunInput = this._deviceSource.getInput(76) != 0; // switch to gun = L
+                this._moveInput.copyFromFloats(this._deviceSource.getInput(68) - this._deviceSource.getInput(65), /* D = X+, A = X- */
+                                               this._deviceSource.getInput(87) - this._deviceSource.getInput(83), /* W = Y+, S = Y- */
+                                               0);
+                this._jumpInput = this._deviceSource.getInput(32) != null ? this._deviceSource.getInput(32) != 0 : false;         /* jump = space */
+                this._dashInput = this._deviceSource.getInput(16) != null ? this._deviceSource.getInput(16) != 0 : false;         /* dash = shift */
+                this._lightAttackInput = this._deviceSource.getInput(74) != null ? this._deviceSource.getInput(74) != 0 : false;  /* light attack = J */
+                this._heavyAttackInput = this._deviceSource.getInput(75) != null ? this._deviceSource.getInput(75) != 0 : false;  /* heavy attack = K */
+                this._switchGunInput = this._deviceSource.getInput(76) != null ? this._deviceSource.getInput(76) != 0 : false;    /* switch to gun = L */
+
+                if (false){
+                    console.log("_moveInput: " + this._moveInput + "\r\n"
+                            + "_jumpInput: " + this._jumpInput + "\r\n"
+                            + "_dashInput: " + this._dashInput + "\r\n"
+                            + "_lightAttackInput: " + this._lightAttackInput + "\r\n"
+                            + "_heavyAttackInput: " + this._heavyAttackInput + "\r\n"
+                            + "_switchGunInput: " + this._switchGunInput);
+                }
+                if (false) {
+                    console.log("_moveRawInput: " + [this._deviceSource.getInput(68) - this._deviceSource.getInput(65), this._deviceSource.getInput(87) - this._deviceSource.getInput(83)] + "\r\n"
+                            + "_jumpInput: " + this._deviceSource.getInput(32) + "\r\n"
+                            + "_dashInput: " + this._deviceSource.getInput(16) + "\r\n"
+                            + "_lightAttackInput: " + this._deviceSource.getInput(74) + "\r\n"
+                            + "_heavyAttackInput: " + this._deviceSource.getInput(75) + "\r\n"
+                            + "_switchGunInput: " + this._deviceSource.getInput(76));
+                }
                 break;
             case DeviceType.DualShock:
-                this._moveInput.copyFromFloats(this._deviceSource.getInput(DualShockInput.LStickXAxis), this._deviceSource.getInput(DualShockInput.LStickYAxis));
+                this._moveInput.copyFromFloats(this._deviceSource.getInput(DualShockInput.LStickXAxis), this._deviceSource.getInput(DualShockInput.LStickYAxis), 0);
                 this._jumpInput = this._deviceSource.getInput(DualShockButton.Cross) != 0;
                 this._dashInput = this._deviceSource.getInput(DualShockButton.R1) != 0;
                 this._lightAttackInput = this._deviceSource.getInput(DualShockButton.Square) != 0;
@@ -258,7 +510,7 @@ class Player implements IDisposable{
                 this._switchGunInput = this._deviceSource.getInput(DualShockButton.Circle) != 0;
                 break;
             case DeviceType.Switch:
-                this._moveInput.copyFromFloats(this._deviceSource.getInput(SwitchInput.LStickXAxis), this._deviceSource.getInput(SwitchInput.LStickYAxis));
+                this._moveInput.copyFromFloats(this._deviceSource.getInput(SwitchInput.LStickXAxis), this._deviceSource.getInput(SwitchInput.LStickYAxis), 0);
                 this._jumpInput = this._deviceSource.getInput(SwitchInput.B) != 0;
                 this._dashInput = this._deviceSource.getInput(SwitchInput.R) != 0;
                 this._lightAttackInput = this._deviceSource.getInput(SwitchInput.Y) != 0;
@@ -270,7 +522,7 @@ class Player implements IDisposable{
                 break;
             case DeviceType.Xbox:
             case DeviceType.Generic:
-                this._moveInput.copyFromFloats(this._deviceSource.getInput(XboxInput.LStickXAxis), this._deviceSource.getInput(XboxInput.LStickYAxis));
+                this._moveInput.copyFromFloats(this._deviceSource.getInput(XboxInput.LStickXAxis), this._deviceSource.getInput(XboxInput.LStickYAxis), 0);
                 this._jumpInput = this._deviceSource.getInput(XboxInput.A) != 0;
                 this._dashInput = this._deviceSource.getInput(XboxInput.RB) != 0;
                 this._lightAttackInput = this._deviceSource.getInput(XboxInput.X) != 0;
@@ -280,22 +532,112 @@ class Player implements IDisposable{
         }
     }
 
+    private _checkColliders(): void {
+        /* check for ground */
+        let ray = new Ray(this._transform.position.add(this._groundRaycastOffset), this._groundRaycastDirection, this._groundRaycastLength);
+        let pickableMeshes = (mesh: Mesh) => {
+            return mesh.isPickable && mesh.layerMask & Game.GROUND_LAYER && mesh.isEnabled();
+        }
+        let rayPick = this._scene.pickWithRay(ray, pickableMeshes);
+        this._grounded = rayPick.hit;
+
+        /* check for walls */
+        /* check for hits */
+    }
+
     private _doMovement(): void {
-        if (this._currentAnimation){
+        if (this._currentAnimation && this._currentAnimation.doesMovement){
             this._currentAnimation.doMovement();
+        } else {
+            if (this._canMove) {
+                /* set the movement vector using the player locomotion */
+                this._velocity.copyFromFloats(0, 0, 0);
+                if (!this._grounded && this._jumpTimerElapsed <= 0){
+                    this.doGravityMovement(this._velocity);
+                }
+                this.doHorizontalMovement(this._velocity);
+                if (this._jumpTimerElapsed > 0) {
+                    this.doJumpMovement(this._velocity);
+                }
+            }
+            this._transform.position.addInPlace( this._velocity.scale(this._scene.getEngine().getDeltaTime()/1000));
         }
     }
 
+    public doGravityMovement(moveVector: Vector3): void {
+        moveVector.addInPlace(this._gravity);
+    }
+
+    private doHorizontalMovement(moveVector: Vector3): void {
+        let moveSpeed: Vector3 = this._moveInput.scale(this._moveSpeed);
+        moveVector.addInPlace(moveSpeed);
+    }
+
+    public doJumpMovement(moveVector: Vector3): void {
+        moveVector.addInPlace(new Vector3(0, this._jumpSpeed));
+    }
+
+    public doDashMovement(moveVector: Vector3): void {
+        moveVector.addInPlace(new Vector3(this._dashSpeed, 0, 0));
+    }
+
     private _doStateTransition(): void {
-        if (this._moveInput.x != 0) {
-            this._changeAnimationState(this._runAnimation);
-        }else{
-            this._changeAnimationState(this._idleAnimation);
+        if (this._hitTimer > 0) {
+            if (this._gunDrawn) {
+                this._changeAnimationState(this._hitGunAnimation);
+            } else {
+                this._changeAnimationState(this._hitAnimation)
+            }
+            return;
+        }
+        if (this._canMove) {
+            if (this._switchGunInput) {
+                if (this._gunDrawn) {
+                    this._changeAnimationState(this._switchGunReverseAnimation);
+                 } else {
+                    this._changeAnimationState(this._switchGunAnimation);
+                 }
+            } else if (this._lightAttackInput) {
+                this._changeAnimationState(this._light1Attack);
+            } else if (this._heavyAttackInput) {
+                this._changeAnimationState(this._heavy1Attack);
+            } else if ((this._canJump && this._jumpInput) || this._jumpTimerElapsed > 0) {
+                if (this._gunDrawn) {
+                    this._changeAnimationState(this._jumpGunAnimation);
+                } else {
+                    this._changeAnimationState(this._jumpAnimation);
+                }
+            } else if (!this._grounded) {
+                this._changeAnimationState(this._fallAnimation)
+            } else if (this._moveInput.x != 0) {
+                if (this._gunDrawn){
+                    this._changeAnimationState(this._runGunAnimation);
+                } else {
+                    this._changeAnimationState(this._runAnimation);
+                }
+            }else {
+                if (this._gunDrawn) {
+                    this._changeAnimationState(this._idleGunAnimation);
+                } else {
+                    this._changeAnimationState(this._idleAnimation);
+                }
+            }
         }
     }
 
     private _setupColliders(): void {
+        this._hurtboxes = [];
+        this._hitboxes = [];
+        let hurtbox = MeshBuilder.CreateBox(this._getPlayerName()+"_hurtbox", {
+            width: 0.5, height: 1, depth: 0.5
+        }, this._scene);
+        hurtbox.layerMask = Game.HURTBOX_LAYER;
+        this._hurtboxes.push(hurtbox);
 
+        /* offset the player collider such that the transform origin is at the collider's bottom */
+        hurtbox.position = new Vector3(0, 0.5, 0);
+        hurtbox.bakeCurrentTransformIntoVertices();
+        hurtbox.setParent(this._transform);
     }
 
     public dispose(){
@@ -340,6 +682,12 @@ class Game {
 
     /* debugging */
     _debuggingEnabled: boolean = true;
+
+    /* layering related variables */
+    static DEFAULT_LAYER    = 0x0FFFFFFF;
+    static HURTBOX_LAYER    = 0x10000000;
+    static HITBOX_LAYER     = 0x20000000;
+    static GROUND_LAYER     = 0x01000000;
 
     constructor(canvas){
         this.players = [];
@@ -413,6 +761,9 @@ class Game {
     private initializeBackground() : Promise<any> {
         this.gameScene.clearColor = new Color4(0.2, 0.2, 0.3, 1.0);
         return SceneLoader.ImportMeshAsync("","./Meshes/", "rooftop.glb", this.gameScene).then((result) => {
+            let environmentLight = new HemisphericLight("sunLight", Vector3.Up(), this.gameScene);
+            /* dim the light a bit */
+            environmentLight.intensity = 0.7;
             result.meshes.forEach((mesh) => {
                 console.log(mesh.name);
             });
