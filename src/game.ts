@@ -51,6 +51,7 @@ class Attack extends AnimationState {
 class Player implements IDisposable{
     private _scene: Scene;
     private _playerIndex: number;
+    private _deltaTime: number; /* The time since the last frame, in seconds */
 
     public static player1SpriteManager: SpriteManager;
     public static player2SpriteManager: SpriteManager;
@@ -103,6 +104,9 @@ class Player implements IDisposable{
     private _dashSpeed: number = 8;
     private _dashTimer: number = 0.25;
     private _dashTimerElapsed: number = 0;
+    private _dashCooldownTimer: number = 0.5;
+    private _dashCooldownTimerElapsed: number = 0;
+    private _dashDirection: number = 1;
 
     /* Animation variables */
     private _spritePlayer: Sprite;
@@ -342,15 +346,15 @@ class Player implements IDisposable{
             this.player._canJump = false;
             this.player._canBeHit = true;
             this.player._canWallRun = true;
-            console.log("entering jump state");
             this.player._jumpTimerElapsed = this.player._jumpTimer;
+            console.log("entering jump state");
         };
         this._jumpAnimation.update = () => {
             if (true){
-                console.log("engine.getDeltaTime():" + this._scene.getEngine().getDeltaTime()/1000);
+                console.log("engine.getDeltaTime():" + this._deltaTime);
                 console.log ("_jumpTimerElapsed : " + this._jumpTimerElapsed);
             }
-            this._jumpTimerElapsed -= this._scene.getEngine().getDeltaTime()/1000;
+            this._jumpTimerElapsed -= this._deltaTime;
         }
         this._jumpAnimation.stop = function () {
             console.log("leaving jump state");
@@ -370,11 +374,11 @@ class Player implements IDisposable{
             this.player._canJump = false;
             this.player._canBeHit = true;
             this.player._canWallRun = true;
-            console.log("entering jump-gun state");
             this.player._jumpTimerElapsed = this.player._jumpTimer;
+            console.log("entering jump-gun state");
         };
         this._jumpGunAnimation.update = () => {
-            this._jumpTimerElapsed -= this._scene.getEngine().getDeltaTime()/1000;
+            this._jumpTimerElapsed -= this._deltaTime;
         }
         this._jumpGunAnimation.stop = function () {
             console.log("leaving jump-gun state");
@@ -421,18 +425,114 @@ class Player implements IDisposable{
             console.log("leaving fall-gun state");
         }
 
+        /* dash animation frame data and state logic */
+        this._dashAnimation.player = this;
+        this._dashAnimation.spritePlayer = this._spritePlayer;
+        this._dashAnimation.from = 55;
+        this._dashAnimation.to = 61;
+        this._dashAnimation.speed = 50;
+        this._dashAnimation.canCancelAfter = 0;
+        this._dashAnimation.loop = false;
+        this._dashAnimation.start = function () {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canJump = true;
+            this.player._canBeHit = false;
+            this.player._canWallRun = false;
+            this.player._jumpTimerElapsed = 0;
+            if (this.player._flipped){
+                if (this.player._moveInput.x <= 0){
+                    this.player._dashDirection = -1;
+                }else{
+                    this.player._dashDirection = 1;
+                }
+            } else {
+                if (this.player._moveInput.x >= 0){
+                    this.player._dashDirection = 1;
+                } else {
+                    this.player._dashDirection = -1;
+                }
+            }
+            this.player._dashTimerElapsed = this.player._dashTimer;
+            console.log("entering dash state");
+        }
+        this._dashAnimation.update = () => {
+            this._dashTimerElapsed -= this._deltaTime;
+            console.log("player._dashTimer: " + this._dashTimerElapsed);
+            if (this._dashTimerElapsed <= 0){
+                if (this._grounded){
+                    this._changeAnimationState(this._idleAnimation);
+                } else {
+                    this._changeAnimationState(this._fallAnimation);
+                }
+            }
+        }
+        this._dashAnimation.doesMovement = true;
+        this._dashAnimation.doMovement = () => {
+            this._velocity.copyFromFloats(1, 0, 0);
+            this._velocity.scaleInPlace(this._dashDirection * this._dashSpeed);
+            this._transform.position.addInPlace(this._velocity.scale(this._deltaTime));
+        }
+        this._dashAnimation.stop = () => {
+            console.log("exiting dash state");
+            this._dashCooldownTimerElapsed = this._dashCooldownTimer;
+        }
+
+        /* dash animation (with gun drawn) frame data and state logic */
+        this._dashGunAnimation.player = this;
+        this._dashGunAnimation.spritePlayer = this._spritePlayer;
+        this._dashGunAnimation.from = 142;
+        this._dashGunAnimation.to = 148;
+        this._dashGunAnimation.speed = 50;
+        this._dashGunAnimation.canCancelAfter = 0;
+        this._dashGunAnimation.loop = false;
+        this._dashGunAnimation.start = function () {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canJump = true;
+            this.player._canBeHit = false;
+            this.player._canWallRun = false;
+            this.player._jumpTimerElapsed = 0;
+            if (this.player._flipped){
+                if (this.player._moveInput.x <= 0){
+                    this.player._dashDirection = -1;
+                }else{
+                    this.player._dashDirection = 1;
+                }
+            } else {
+                if (this.player._moveInput.x >= 0){
+                    this.player._dashDirection = 1;
+                } else {
+                    this.player._dashDirection = -1;
+                }
+            }
+            this.player._dashTimerElapsed = this.player._dashTimer;
+            console.log("entering dash-gun state");
+        }
+        this._dashGunAnimation.update = () => {
+            this._dashTimerElapsed -= this._deltaTime;
+            if (this._dashTimerElapsed <= 0){
+                if (this._grounded){
+                    this._changeAnimationState(this._idleGunAnimation);
+                } else {
+                    this._changeAnimationState(this._fallGunAnimation);
+                }
+            }
+        }
+        this._dashGunAnimation.doesMovement = true;
+        this._dashGunAnimation.doMovement = () => {
+            this._velocity.copyFromFloats(1, 0, 0);
+            this._velocity.scaleInPlace(this._dashDirection * this._dashSpeed);
+            this._transform.position.addInPlace(this._velocity.scale(this._deltaTime));
+        }
+        this._dashGunAnimation.stop = () => {
+            console.log("exiting dash-gun state");
+            this._dashCooldownTimerElapsed = this._dashCooldownTimer;
+        }
+
         /* */
-        //_fallAnimation: AnimationState = new AnimationState();
         //_hitAnimation: AnimationState = new AnimationState();
-        //_landAnimation: AnimationState = new AnimationState();
-        //_dashAnimation: AnimationState = new AnimationState();
-        //_idleGunAnimation: AnimationState = new AnimationState();
-        //_runGunAnimation: AnimationState = new AnimationState();
-        //_jumpGunAnimation: AnimationState = new AnimationState();
-        //_fallGunAnimation: AnimationState = new AnimationState();
         //_hitGunAnimation: AnimationState = new AnimationState();
-        //_landGunAnimation: AnimationState = new AnimationState();
-        //_dashGunAnimation: AnimationState = new AnimationState();
 
         return Promise.resolve();
     }
@@ -456,8 +556,10 @@ class Player implements IDisposable{
 
     /* Frame Update */
     private _onBeforeRender() {
+        this._deltaTime = this._scene.getEngine().getDeltaTime()/1000;
         this._updateInput();
         this._checkColliders();
+        this._updateTimers();
         this._doStateTransition();
         this._doMovement();
     }
@@ -560,7 +662,7 @@ class Player implements IDisposable{
                     this.doJumpMovement(this._velocity);
                 }
             }
-            this._transform.position.addInPlace( this._velocity.scale(this._scene.getEngine().getDeltaTime()/1000));
+            this._transform.position.addInPlace( this._velocity.scale(this._deltaTime));
         }
     }
 
@@ -581,6 +683,15 @@ class Player implements IDisposable{
         moveVector.addInPlace(new Vector3(this._dashSpeed, 0, 0));
     }
 
+    private _updateTimers() {
+        if (this._dashCooldownTimerElapsed > 0){
+            this._dashCooldownTimerElapsed -= this._deltaTime;
+        }
+        if (this._hitTimer > 0){
+            this._hitTimer -= this._deltaTime;
+        }
+    }
+
     private _doStateTransition(): void {
         if (this._hitTimer > 0) {
             if (this._gunDrawn) {
@@ -597,18 +708,28 @@ class Player implements IDisposable{
                  } else {
                     this._changeAnimationState(this._switchGunAnimation);
                  }
-            } else if (this._lightAttackInput) {
-                this._changeAnimationState(this._light1Attack);
-            } else if (this._heavyAttackInput) {
-                this._changeAnimationState(this._heavy1Attack);
+            } else if ((this._dashCooldownTimerElapsed <= 0 && this._dashInput) || this._dashTimerElapsed > 0) {
+                if (this._gunDrawn) {
+                    this._changeAnimationState(this._dashGunAnimation);
+                } else {
+                    this._changeAnimationState(this._dashAnimation);
+                }
             } else if ((this._canJump && this._jumpInput) || this._jumpTimerElapsed > 0) {
                 if (this._gunDrawn) {
                     this._changeAnimationState(this._jumpGunAnimation);
                 } else {
                     this._changeAnimationState(this._jumpAnimation);
                 }
+            } else if (this._lightAttackInput) {
+                this._changeAnimationState(this._light1Attack);
+            } else if (this._grounded && this._heavyAttackInput) {
+                this._changeAnimationState(this._heavy1Attack);
             } else if (!this._grounded) {
-                this._changeAnimationState(this._fallAnimation)
+                if (this._gunDrawn) {
+                    this._changeAnimationState(this._fallGunAnimation);
+                } else {
+                    this._changeAnimationState(this._fallAnimation);
+                }
             } else if (this._moveInput.x != 0) {
                 if (this._gunDrawn){
                     this._changeAnimationState(this._runGunAnimation);
