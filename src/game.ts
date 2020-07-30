@@ -1,4 +1,4 @@
-import { FreeCamera, TargetCamera, SceneLoader, SpriteManager, Sprite, DeviceSourceManager, DeviceSource, DeviceType, DualShockInput, DualShockButton, SwitchInput, XboxInput, GenericController } from "@babylonjs/core";
+import { RayHelper, FreeCamera, TargetCamera, SceneLoader, SpriteManager, Sprite, DeviceSourceManager, DeviceSource, DeviceType, DualShockInput, DualShockButton, SwitchInput, XboxInput, GenericController } from "@babylonjs/core";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { Ray } from "@babylonjs/core/Culling"
 import { Engine } from "@babylonjs/core/Engines/engine";
@@ -85,10 +85,10 @@ class Player implements IDisposable{
     private _gunDrawn: boolean = false;
 
     /* physics related variables */
-    private _gravity: Vector3 = new Vector3(0, -3, 0);
+    private _gravity: Vector3 = new Vector3(0, -5, 0);
     private _groundRaycastDirection: Vector3 = new Vector3(0, -1, 0);
     private _groundRaycastOffset: Vector3 =  new Vector3(0, 0.2, 0);
-    private _groundRaycastLength: number = 0.2;
+    private _groundRaycastLength: number = 0.21;
     private _wallRaycastDirections: Vector3[] = [new Vector3(-1, 0, 0), new Vector3(1, 0, 0)];
     private _knockbackDirection: Vector3 = new Vector3();
     private _wallCollider: Mesh;
@@ -97,14 +97,14 @@ class Player implements IDisposable{
 
     /* movement related variables */
     private _velocity: Vector3 = new Vector3(); /* Current world-space velocity */
-    private _moveSpeed: number = 3;
-    private _jumpSpeed: number = 3;
-    private _jumpTimer: number = 0.4;
-    private _jumpTimerElapsed: number = 0;
+    private _moveSpeed: number = 3.5;
+    private _jumpSpeed: number = 6;
+    private _jumpSpeedCurrent: number = 0;
+    private _jumpSpeedSlowdownRate: number = 12;
     private _dashSpeed: number = 8;
-    private _dashTimer: number = 0.25;
+    private _dashTimer: number = 0.18;
     private _dashTimerElapsed: number = 0;
-    private _dashCooldownTimer: number = 0.5;
+    private _dashCooldownTimer: number = 0.25;
     private _dashCooldownTimerElapsed: number = 0;
     private _dashDirection: number = 1;
 
@@ -335,7 +335,7 @@ class Player implements IDisposable{
         /* Jump animation frame data and state logic */
         this._jumpAnimation.player = this;
         this._jumpAnimation.spritePlayer = this._spritePlayer;
-        this._jumpAnimation.from = 28;
+        this._jumpAnimation.from = 29;
         this._jumpAnimation.to = 36;
         this._jumpAnimation.speed = 100;
         this._jumpAnimation.canCancelAfter = 0;
@@ -346,24 +346,30 @@ class Player implements IDisposable{
             this.player._canJump = false;
             this.player._canBeHit = true;
             this.player._canWallRun = true;
-            this.player._jumpTimerElapsed = this.player._jumpTimer;
+            this.player._jumpSpeedCurrent = this.player._jumpSpeed;
             console.log("entering jump state");
         };
         this._jumpAnimation.update = () => {
-            if (true){
+            if (false){
                 console.log("engine.getDeltaTime():" + this._deltaTime);
-                console.log ("_jumpTimerElapsed : " + this._jumpTimerElapsed);
+                console.log ("this._jumpSpeedCurrent : " + this._jumpSpeedCurrent);
             }
-            this._jumpTimerElapsed -= this._deltaTime;
+            this._jumpSpeedCurrent -= this._deltaTime * this._jumpSpeedSlowdownRate;
+
+            /* Allow the player to stop jumping when jump is released */
+            if (!this._jumpInput){
+                this._jumpSpeedCurrent = 0;
+            }
         }
         this._jumpAnimation.stop = function () {
+            this.player._jumpSpeedCurrent = 0;
             console.log("leaving jump state");
         }
 
         /* Jump animation (with gun drawn) frame data and state logic */
         this._jumpGunAnimation.player = this;
         this._jumpGunAnimation.spritePlayer = this._spritePlayer;
-        this._jumpGunAnimation.from = 116;
+        this._jumpGunAnimation.from = 117;
         this._jumpGunAnimation.to = 124;
         this._jumpGunAnimation.speed = 100;
         this._jumpGunAnimation.canCancelAfter = 0;
@@ -374,13 +380,18 @@ class Player implements IDisposable{
             this.player._canJump = false;
             this.player._canBeHit = true;
             this.player._canWallRun = true;
-            this.player._jumpTimerElapsed = this.player._jumpTimer;
+            this.player._jumpSpeedCurrent = this.player._jumpSpeed;
             console.log("entering jump-gun state");
         };
         this._jumpGunAnimation.update = () => {
-            this._jumpTimerElapsed -= this._deltaTime;
+            this._jumpSpeedCurrent -= this._deltaTime * this._jumpSpeedSlowdownRate;
+            /* Allow the player to stop jumping when jump is released */
+            if (!this._jumpInput){
+                this._jumpSpeedCurrent = 0;
+            }
         }
         this._jumpGunAnimation.stop = function () {
+            this.player._jumpSpeedCurrent = 0;
             console.log("leaving jump-gun state");
         }
 
@@ -436,7 +447,6 @@ class Player implements IDisposable{
         this._dashAnimation.start = function () {
             this.playAnimation();
             this.player._canMove = false;
-            this.player._canJump = true;
             this.player._canBeHit = false;
             this.player._canWallRun = false;
             this.player._jumpTimerElapsed = 0;
@@ -458,7 +468,7 @@ class Player implements IDisposable{
         }
         this._dashAnimation.update = () => {
             this._dashTimerElapsed -= this._deltaTime;
-            console.log("player._dashTimer: " + this._dashTimerElapsed);
+            //console.log("player._dashTimer: " + this._dashTimerElapsed);
             if (this._dashTimerElapsed <= 0){
                 if (this._grounded){
                     this._changeAnimationState(this._idleAnimation);
@@ -489,7 +499,6 @@ class Player implements IDisposable{
         this._dashGunAnimation.start = function () {
             this.playAnimation();
             this.player._canMove = false;
-            this.player._canJump = true;
             this.player._canBeHit = false;
             this.player._canWallRun = false;
             this.player._jumpTimerElapsed = 0;
@@ -641,7 +650,11 @@ class Player implements IDisposable{
             return mesh.isPickable && mesh.layerMask & Game.GROUND_LAYER && mesh.isEnabled();
         }
         let rayPick = this._scene.pickWithRay(ray, pickableMeshes);
+        let rayHelper = new RayHelper(ray);
         this._grounded = rayPick.hit;
+        if (this._grounded){
+            this._transform.position.copyFromFloats(this._transform.position.x, rayPick.pickedPoint.y, this._transform.position.z);
+        }
 
         /* check for walls */
         /* check for hits */
@@ -654,11 +667,11 @@ class Player implements IDisposable{
             if (this._canMove) {
                 /* set the movement vector using the player locomotion */
                 this._velocity.copyFromFloats(0, 0, 0);
-                if (!this._grounded && this._jumpTimerElapsed <= 0){
+                if (!this._grounded && this._jumpSpeedCurrent <= 0){
                     this.doGravityMovement(this._velocity);
                 }
                 this.doHorizontalMovement(this._velocity);
-                if (this._jumpTimerElapsed > 0) {
+                if (this._jumpSpeedCurrent > 0) {
                     this.doJumpMovement(this._velocity);
                 }
             }
@@ -676,7 +689,7 @@ class Player implements IDisposable{
     }
 
     public doJumpMovement(moveVector: Vector3): void {
-        moveVector.addInPlace(new Vector3(0, this._jumpSpeed));
+        moveVector.addInPlace(new Vector3(0, this._jumpSpeedCurrent));
     }
 
     public doDashMovement(moveVector: Vector3): void {
@@ -714,7 +727,7 @@ class Player implements IDisposable{
                 } else {
                     this._changeAnimationState(this._dashAnimation);
                 }
-            } else if ((this._canJump && this._jumpInput) || this._jumpTimerElapsed > 0) {
+            } else if ((this._canJump && this._jumpInput) || this._jumpSpeedCurrent > 0) {
                 if (this._gunDrawn) {
                     this._changeAnimationState(this._jumpGunAnimation);
                 } else {
