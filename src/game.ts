@@ -1,4 +1,5 @@
 import { RayHelper, FreeCamera, TargetCamera, SceneLoader, SpriteManager, Sprite, DeviceSourceManager, DeviceSource, DeviceType, DualShockInput, DualShockButton, SwitchInput, XboxInput, GenericController } from "@babylonjs/core";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { Ray } from "@babylonjs/core/Culling"
 import { Engine } from "@babylonjs/core/Engines/engine";
@@ -49,6 +50,7 @@ class Attack extends AnimationState {
 }
 
 class Player implements IDisposable{
+    private _game: Game;
     private _scene: Scene;
     private _playerIndex: number;
     private _deltaTime: number; /* The time since the last frame, in seconds */
@@ -61,6 +63,7 @@ class Player implements IDisposable{
     private _spritePlayerOffset: Vector3 = new Vector3(0, 0.5, 0);
 
     /* input variables */
+    private _joystickLDeadZone: Vector3 = new Vector3(0.1, 0.1, 0);
     private _deviceSource: DeviceSource<any>;
     private _moveInput: Vector3 = new Vector3();
     private _jumpInput: boolean;
@@ -90,6 +93,8 @@ class Player implements IDisposable{
     private _groundRaycastOffset: Vector3 =  new Vector3(0, 0.2, 0);
     private _groundRaycastLength: number = 0.21;
     private _wallRaycastDirections: Vector3[] = [new Vector3(-1, 0, 0), new Vector3(1, 0, 0)];
+    private _wallRaycastOffsets: Vector3[] = [new Vector3(-0.2, 0, 0), new Vector3(0.2, 0, 0)];
+    private _wallRaycastLength: number = 0.2;
     private _knockbackDirection: Vector3 = new Vector3();
     private _wallCollider: Mesh;
     private _hurtboxes: Mesh[];
@@ -139,8 +144,9 @@ class Player implements IDisposable{
     private _jumpShootGunAttack: Attack = new Attack();
 
     /* constructor */
-    constructor(scene: Scene, playerIndex: number, deviceSource: DeviceSource<any>) {
+    constructor(game: Game, scene: Scene, playerIndex: number, deviceSource: DeviceSource<any>) {
         console.log("Adding player - " + playerIndex);
+        this._game = game;
         this._scene = scene;
         this._playerIndex = playerIndex;
         this._deviceSource = deviceSource;
@@ -158,6 +164,7 @@ class Player implements IDisposable{
         const promises: Promise<any>[] = []
         this._transform = new TransformNode(this._getPlayerName(), this._scene);
         this._transform.rotate(Vector3.Up(), 2*Math.PI); /* manually rotate the player so we use TransformNode.rotationQuaternion instead of TranformNode.rotation */
+
         this._setupColliders()
         promises.push(this._setupAnimations());
         return Promise.all(promises).then(() => {
@@ -169,7 +176,8 @@ class Player implements IDisposable{
     public reset(startPosition: Vector3 = Vector3.Zero()) {
         this._changeAnimationState(this._idleAnimation);
         this._gunDrawn = false;
-        this._transform.position.copyFrom(startPosition);
+        this._transform.position.copyFrom(this._game.getSpawnPosition(this._playerIndex));
+        this._transform.computeWorldMatrix();
         /* this._ammo = this._maxAmmo */
         /* this._health = this._maxHealth;*/
     }
@@ -552,8 +560,11 @@ class Player implements IDisposable{
         this._spritePlayerTransform.position.copyFrom(this._spritePlayerOffset);
         switch(this._playerIndex) {
             case 1:
+                this._spritePlayer = new Sprite("Player_1_CharacterSprite", Player.player2SpriteManager);
+                break;
+            case 0:
             default:
-                this._spritePlayer = new Sprite("Player_1_CharacterSprite", Player.player1SpriteManager);
+                this._spritePlayer = new Sprite("Player_0_CharacterSprite", Player.player1SpriteManager);
                 break;
         }
 
@@ -613,7 +624,9 @@ class Player implements IDisposable{
                 }
                 break;
             case DeviceType.DualShock:
-                this._moveInput.copyFromFloats(this._deviceSource.getInput(DualShockInput.LStickXAxis), this._deviceSource.getInput(DualShockInput.LStickYAxis), 0);
+                this._moveInput.copyFromFloats(this._deviceSource.getInput(DualShockInput.LStickXAxis),
+                                               this._deviceSource.getInput(DualShockInput.LStickYAxis),
+                                               0);
                 this._jumpInput = this._deviceSource.getInput(DualShockButton.Cross) != 0;
                 this._dashInput = this._deviceSource.getInput(DualShockButton.R1) != 0;
                 this._lightAttackInput = this._deviceSource.getInput(DualShockButton.Square) != 0;
@@ -641,6 +654,14 @@ class Player implements IDisposable{
                 this._switchGunInput = this._deviceSource.getInput(XboxInput.B) != 0;
                 break;
         }
+
+        /* Apply input deadzones */
+        if (Math.abs(this._moveInput.x) < this._joystickLDeadZone.x){
+            this._moveInput.x = 0;
+        }
+        if (Math.abs(this._moveInput.y) < this._joystickLDeadZone.y){
+            this._moveInput.y = 0;
+        }
     }
 
     private _checkColliders(): void {
@@ -653,6 +674,9 @@ class Player implements IDisposable{
         let rayHelper = new RayHelper(ray);
         this._grounded = rayPick.hit;
         if (this._grounded){
+            if (true) {
+                console.log("Standing on ground mesh: \"" + rayPick.pickedMesh.name + "\"");
+            }
             this._transform.position.copyFromFloats(this._transform.position.x, rayPick.pickedPoint.y, this._transform.position.z);
         }
 
@@ -775,7 +799,6 @@ class Player implements IDisposable{
     }
 
     public dispose(){
-        this._wallCollider.dispose();
         this._hurtboxes.forEach((hurtbox) => { hurtbox.dispose(); });
         this._hitboxes.forEach((hitbox) => { hitbox.dispose(); });
         this._spritePlayer.dispose();
@@ -799,6 +822,7 @@ class Player implements IDisposable{
 
 
 class Game {
+    canvas: HTMLCanvasElement;
     engine: Engine;
     gameScene: Scene;
     players: Player[];
@@ -808,7 +832,8 @@ class Game {
     /* camera related variables */
     mainCamera: TargetCamera;
     _cameraTarget: Vector3 = new Vector3(0, 2, 0);
-    _cameraPosition: Vector3 = new Vector3(0, 2, -5);
+    _cameraPosition: Vector3 = new Vector3(0, 3, -10);
+    _aspectRatio: number = 1.77777776; /* 16:9 aspect ratio */
 
     /* input related variables */
     deviceSourceManager: DeviceSourceManager;
@@ -817,17 +842,26 @@ class Game {
     /* debugging */
     _debuggingEnabled: boolean = true;
 
+    /* Scene Colliders */
+    _groundImpostors: AbstractMesh[];
+    _wallImpostors: AbstractMesh[];
+
+    /* Spawn related Variables */
+    _spawnPositions: Vector3[] = [new Vector3(0, 0, 0), new Vector3(0, 0, 0)];
+
     /* layering related variables */
-    static DEFAULT_LAYER    = 0x0FFFFFFF;
+    static DEFAULT_LAYER    = 0x0CFFFFFF;
     static HURTBOX_LAYER    = 0x10000000;
     static HITBOX_LAYER     = 0x20000000;
     static GROUND_LAYER     = 0x01000000;
+    static WALL_LAYER       = 0x02000000;
 
     constructor(canvas){
         this.players = [];
         this.devices = [];
-
-        let engine = new Engine(canvas);
+        this.canvas = canvas;
+        this.resizeCanvas(this.canvas)
+        let engine = new Engine(this.canvas);
         this.engine = engine;
         let gameScene = new Scene(engine);
         this.deviceSourceManager = new DeviceSourceManager(engine);
@@ -838,7 +872,7 @@ class Game {
             if (device.deviceType != DeviceType.Mouse) {
                 this.devices.push(device);
                 if (this.players.length < this._maxPlayers) {
-                    this.players.push(new Player(this.gameScene, this.players.length, this.deviceSourceManager.getDeviceSource(device.deviceType, device.deviceSlot)));
+                    this.players.push(new Player(this, this.gameScene, this.players.length, this.deviceSourceManager.getDeviceSource(device.deviceType, device.deviceSlot)));
                 }
             }
         });
@@ -875,8 +909,9 @@ class Game {
         });
 
         /* if the user resizes the browser window, configure the engine to handle the resizing as well */
-        window.addEventListener("resize", function () {
-            engine.resize();
+        window.addEventListener("resize", () => {
+            //this.resizeCanvas(this.canvas);
+            this.engine.resize();
         });
 
         /* once we're done loading in all our dependencies, initialize the game then hide the loading UI */
@@ -886,27 +921,80 @@ class Game {
         });
     }
 
+    private resizeCanvas(canvas) : void {
+        let winWidth = window.innerWidth;
+        let winHeight = window.innerHeight;
+
+        let aspectRatio = this._aspectRatio;
+        let heightTimesAspect = Math.round(winHeight * aspectRatio);
+
+        if (winWidth <= heightTimesAspect) {
+            canvas.width = winWidth;
+            canvas.height = Math.round(winWidth / aspectRatio);
+        } else {
+            canvas.width = heightTimesAspect;
+            canvas.height = winHeight;
+        }
+    }
+
     private initializeCamera() : void {
         this.mainCamera = new FreeCamera("mainCamera", this._cameraPosition, this.gameScene);
+        this.updateCamera();
+    }
+
+    private updateCamera() : void {
+        this.mainCamera.position = this._cameraPosition;
         this.mainCamera.setTarget(this._cameraTarget);
-        //this.mainCamera.attachControl(canvas);
     }
 
     private initializeBackground() : Promise<any> {
+        this._groundImpostors = [];
+        this._wallImpostors = [];
         this.gameScene.clearColor = new Color4(0.2, 0.2, 0.3, 1.0);
         return SceneLoader.ImportMeshAsync("","./Meshes/", "rooftop.glb", this.gameScene).then((result) => {
             let environmentLight = new HemisphericLight("sunLight", Vector3.Up(), this.gameScene);
             /* dim the light a bit */
             environmentLight.intensity = 0.7;
-            result.meshes.forEach((mesh) => {
+            this.gameScene.getNodes().forEach((mesh) => {
+                if (mesh.name == "GroundImpostor") {
+                    this._groundImpostors.push(mesh as AbstractMesh);
+                } else if (mesh.name == "WallImpostor_L") {
+                    this._wallImpostors.push(mesh as AbstractMesh);
+                } else if (mesh.name == "WallImpostor_R") {
+                    this._wallImpostors.push(mesh as AbstractMesh);
+                } else if (mesh.name == "Camera") {
+                    mesh.getWorldMatrix().decompose(null, null, this._cameraPosition);
+                } else if (mesh.name == "CameraTarget" ) {
+                    mesh.getWorldMatrix().decompose(null, null, this._cameraTarget);
+                } else if (mesh.name == "Player1_Spawn") {
+                    mesh.getWorldMatrix().decompose(null, null, this._spawnPositions[0]);
+                } else if (mesh.name == "Player2_Spawn") {
+                    mesh.getWorldMatrix().decompose(null, null, this._spawnPositions[1]);
+                } else {
+                    if (mesh instanceof AbstractMesh) {
+                        mesh.layerMask = Game.DEFAULT_LAYER;
+                    }
+                }
                 console.log(mesh.name);
+            });
+
+            this.updateCamera();
+
+            this._groundImpostors.forEach((mesh) => {
+                mesh.layerMask = Game.GROUND_LAYER;
+                mesh.isVisible = false;
+            });
+
+            this._wallImpostors.forEach((mesh) => {
+                mesh.layerMask = Game.WALL_LAYER;
+                mesh.isVisible = false;
             });
         });
     }
 
     private loadCharacterAssets() : Promise<any> {
         Player.player1SpriteManager = new SpriteManager("Player1SpriteManager", "./Sprites/Fighter1.png", 1, {width: 32, height: 32}, this.gameScene );
-        //Player.player2SpriteSheet = new SpriteManager("Player1SpriteManager", "./Sprites/Fighter2.png", 1, {width: 32, height: 32}, this.gameScene );
+        Player.player2SpriteManager = new SpriteManager("Player2SpriteManager", "./Sprites/Fighter2.png", 1, {width: 32, height: 32}, this.gameScene );
         return Promise.resolve();
     }
 
@@ -919,8 +1007,12 @@ class Game {
 
         for (let i = 0; i < this.devices.length && i < this._maxPlayers; ++i){
             const device = this.devices[i];
-            this.players.push(new Player(this.gameScene, i, this.deviceSourceManager.getDeviceSource(device.deviceType, device.deviceSlot)));
+            this.players.push(new Player(this, this.gameScene, i, this.deviceSourceManager.getDeviceSource(device.deviceType, device.deviceSlot)));
         }
+    }
+
+    public getSpawnPosition(playerIndex: number){
+        return this._spawnPositions[playerIndex % this._spawnPositions.length];
     }
 }
 
