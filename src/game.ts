@@ -916,6 +916,16 @@ class Player implements IDisposable{
             }
             this._transform.position.addInPlace( this._velocity.scale(this._deltaTime));
         }
+        this.applyBounds();
+    }
+
+    private applyBounds(): void{
+        this._transform.position.copyFromFloats(Math.min(this._transform.position.x, this._game.playerMaxPosition.x - this._wallRaycastOffset.x),
+                                                Math.min(this._transform.position.y, this._game.playerMaxPosition.y),
+                                                Math.min(this._transform.position.z, this._game.playerMaxPosition.z));
+        this._transform.position.copyFromFloats(Math.max(this._transform.position.x, this._game.playerMinPosition.x + this._wallRaycastOffset.x),
+                                                Math.max(this._transform.position.y, this._game.playerMinPosition.y),
+                                                Math.max(this._transform.position.z, this._game.playerMinPosition.z));
     }
 
     public doGravityMovement(moveVector: Vector3): void {
@@ -1074,7 +1084,12 @@ class Game {
     mainCamera: TargetCamera;
     _cameraTarget: Vector3 = new Vector3(0, 2, 0);
     _cameraPosition: Vector3 = new Vector3(0, 3, -10);
+    _cameraOffset: Vector3 = new Vector3(0, 0, -2.5);
     _aspectRatio: number = 1.77777776; /* 16:9 aspect ratio */
+
+    /* global limits for players */
+    playerMaxPosition: Vector3 = new Vector3(Infinity, Infinity, Infinity);
+    playerMinPosition: Vector3 = new Vector3(-Infinity, -Infinity, -Infinity);
 
     /* input related variables */
     deviceSourceManager: DeviceSourceManager;
@@ -1199,12 +1214,16 @@ class Game {
             this.gameScene.getNodes().forEach((mesh) => {
                 if (mesh.name == "GroundImpostor") {
                     this._groundImpostors.push(mesh as AbstractMesh);
+                    this.playerMinPosition.copyFromFloats(this.playerMinPosition.x, (mesh as AbstractMesh).absolutePosition.y, this.playerMinPosition.z);
                 } else if (mesh.name == "WallImpostor_L") {
                     this._wallImpostors.push(mesh as AbstractMesh);
+                    this.playerMinPosition.copyFromFloats((mesh as AbstractMesh).absolutePosition.x, this.playerMinPosition.y, this.playerMinPosition.z);
                 } else if (mesh.name == "WallImpostor_R") {
                     this._wallImpostors.push(mesh as AbstractMesh);
+                    this.playerMaxPosition.copyFromFloats((mesh as AbstractMesh).absolutePosition.x, this.playerMaxPosition.y, this.playerMaxPosition.z);
                 } else if (mesh.name == "Camera") {
                     mesh.getWorldMatrix().decompose(null, null, this._cameraPosition);
+                    this._cameraPosition.addInPlace(this._cameraOffset);
                 } else if (mesh.name == "CameraTarget" ) {
                     mesh.getWorldMatrix().decompose(null, null, this._cameraTarget);
                 } else if (mesh.name == "Player1_Spawn") {
