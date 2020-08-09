@@ -78,6 +78,7 @@ class Player implements IDisposable{
     private _grounded: boolean;
     private _canBeHit: boolean;
     private _canWallRun: boolean;
+    private _facingWall: boolean;
     private _isWallRunning: boolean;
     private _wallRunningJump: boolean;
     private _isWallStuck: boolean;
@@ -92,8 +93,8 @@ class Player implements IDisposable{
     private _groundRaycastDirection: Vector3 = new Vector3(0, -1, 0);
     private _groundRaycastOffset: Vector3 =  new Vector3(0, 0.2, 0);
     private _groundRaycastLength: number = 0.21;
-    private _wallRaycastDirections: Vector3[] = [new Vector3(-1, 0, 0), new Vector3(1, 0, 0)];
-    private _wallRaycastOffsets: Vector3[] = [new Vector3(-0.2, 0, 0), new Vector3(0.2, 0, 0)];
+    private _wallRaycastDirection: Vector3 = new Vector3(1, 0, 0);
+    private _wallRaycastOffset: Vector3 = new Vector3(0.2, 0, 0);
     private _wallRaycastLength: number = 0.2;
     private _knockbackDirection: Vector3 = new Vector3();
     private _wallCollider: Mesh;
@@ -551,6 +552,213 @@ class Player implements IDisposable{
         //_hitAnimation: AnimationState = new AnimationState();
         //_hitGunAnimation: AnimationState = new AnimationState();
 
+
+        this._light1Attack.player = this;
+        this._light1Attack.spritePlayer = this._spritePlayer;
+        this._light1Attack.from = 62;
+        this._light1Attack.to = 65;
+        this._light1Attack.speed = 50;
+        this._light1Attack.canCancelAfter = 64;
+        this._light1Attack.loop = false;
+        this._light1Attack.start = function ()
+        {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = false;
+            console.log("entering lightAttack2 state");
+        }
+        this._light1Attack.update = () => {
+        }
+        this._light1Attack.onAnimationEnd = () => {
+            if (this._lightAttackInput){
+                this._changeAnimationState(this._light2Attack);
+            }
+            else {
+                this._changeAnimationState(this._idleAnimation);
+            }
+        }
+        this._light1Attack.stop = function () {
+            console.log("leaving lightAttack1 state");
+        }
+
+        this._light2Attack.player = this;
+        this._light2Attack.spritePlayer = this._spritePlayer;
+        this._light2Attack.from = 66;
+        this._light2Attack.to = 70;
+        this._light2Attack.speed = 50;
+        this._light2Attack.canCancelAfter = 68;
+        this._light2Attack.loop = false;
+        this._light2Attack.start = function ()
+        {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = false;
+            console.log("entering lightAttack2 state");
+        }
+        this._light2Attack.update = () => {
+        }
+        this._light2Attack.onAnimationEnd = () => {
+            if (this._lightAttackInput){
+                this._changeAnimationState(this._light3Attack);
+            }
+            else {
+                this._changeAnimationState(this._idleAnimation);
+            }
+        }
+        this._light2Attack.stop = function () {
+            console.log("leaving lightAttack2 state");
+        }
+
+        this._light3Attack.player = this;
+        this._light3Attack.spritePlayer = this._spritePlayer;
+        this._light3Attack.from = 71;
+        this._light3Attack.to = 76;
+        this._light3Attack.speed = 50;
+        this._light3Attack.canCancelAfter = 68;
+        this._light3Attack.loop = false;
+        this._light3Attack.start = function ()
+        {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = false;
+            console.log("entering lightAttack2 state");
+        }
+        this._light3Attack.update = () => {
+        }
+        this._light3Attack.onAnimationEnd = () => {
+            this._changeAnimationState(this._idleAnimation);
+        }
+        this._light3Attack.stop = function () {
+            console.log("leaving lightAttack3 state");
+        }
+
+        this._heavy1Attack.player = this;
+        this._heavy1Attack.spritePlayer = this._spritePlayer;
+        this._heavy1Attack.from = 77;
+        this._heavy1Attack.to = 86;
+        this._heavy1Attack.speed = 50;
+        this._heavy1Attack.canCancelAfter = 84;
+        this._heavy1Attack.loop = false;
+        this._heavy1Attack.start = function ()
+        {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = false;
+            console.log("entering heavyAttack1 state");
+        }
+        this._heavy1Attack.update = () => {
+        }
+        this._heavy1Attack.onAnimationEnd = () => {
+            this._changeAnimationState(this._idleAnimation);
+        }
+        this._heavy1Attack.stop = function () {
+            console.log("leaving heavyAttack1 state");
+        }
+
+        this._jumpKickAttack.player = this;
+        this._jumpKickAttack.spritePlayer = this._spritePlayer;
+        this._jumpKickAttack.from = 49;
+        this._jumpKickAttack.to = 49;
+        this._jumpKickAttack.speed = 50;
+        this._jumpKickAttack.canCancelAfter = 49;
+        this._jumpKickAttack.loop = false;
+        this._jumpKickAttack.start = function ()
+        {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = false;
+            console.log("entering jumpKickAttack state");
+        }
+        this._jumpKickAttack.update = () => {
+        }
+        this._jumpKickAttack.onAnimationEnd = () => {
+            this._changeAnimationState(this._fallAnimation);
+        }
+        this._jumpKickAttack.stop = function () {
+            console.log("leaving jumpKickAttack state");
+        }
+
+        this._jumpDiveKickAttack.player = this;
+        this._jumpDiveKickAttack.spritePlayer = this._spritePlayer;
+        this._jumpDiveKickAttack.from = 50;
+        this._jumpDiveKickAttack.to = 50;
+        this._jumpDiveKickAttack.speed = 50;
+        this._jumpDiveKickAttack.canCancelAfter = 50;
+        this._jumpDiveKickAttack.loop = false;
+        this._jumpDiveKickAttack.start = function ()
+        {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = false;
+            console.log("entering jumpDiveKickAttack state");
+        }
+        this._jumpDiveKickAttack.update = () => {
+        }
+        this._jumpDiveKickAttack.onAnimationEnd = () => {
+            this._changeAnimationState(this._fallAnimation);
+        }
+        this._jumpDiveKickAttack.stop = function () {
+            console.log("leaving jumpDiveKickAttack state");
+        }
+
+        this._shootGunAttack.player = this;
+        this._shootGunAttack.spritePlayer = this._spritePlayer;
+        this._shootGunAttack.from = 149;
+        this._shootGunAttack.to = 152;
+        this._shootGunAttack.speed = 50;
+        this._shootGunAttack.canCancelAfter = 151;
+        this._shootGunAttack.loop = false;
+        this._shootGunAttack.start = function ()
+        {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = false;
+            console.log("entering shootGunAttack state");
+
+            /* create projectile */
+        }
+        this._shootGunAttack.update = () => {
+        }
+        this._shootGunAttack.onAnimationEnd = () => {
+            this._changeAnimationState(this._idleGunAnimation);
+        }
+        this._shootGunAttack.stop = function () {
+            console.log("leaving shootGunAttack state");
+        }
+
+        this._jumpShootGunAttack.player = this;
+        this._jumpShootGunAttack.spritePlayer = this._spritePlayer;
+        this._jumpShootGunAttack.from = 153;
+        this._jumpShootGunAttack.to = 156;
+        this._jumpShootGunAttack.speed = 50;
+        this._jumpShootGunAttack.canCancelAfter = 155;
+        this._jumpShootGunAttack.loop = false;
+        this._jumpShootGunAttack.start = function ()
+        {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = false;
+            console.log("entering jumpShootGunAttack state");
+
+            /* create projectile */
+        }
+        this._jumpShootGunAttack.update = () => {
+        }
+        this._jumpShootGunAttack.onAnimationEnd = () => {
+            this._changeAnimationState(this._fallAnimation);
+        }
+        this._jumpShootGunAttack.stop = function () {
+            console.log("leaving jumpShootGunAttack state");
+        }
+
         return Promise.resolve();
     }
 
@@ -666,21 +874,28 @@ class Player implements IDisposable{
 
     private _checkColliders(): void {
         /* check for ground */
-        let ray = new Ray(this._transform.position.add(this._groundRaycastOffset), this._groundRaycastDirection, this._groundRaycastLength);
-        let pickableMeshes = (mesh: Mesh) => {
+        let groundRay = new Ray(this._transform.position.add(this._groundRaycastOffset), this._groundRaycastDirection, this._groundRaycastLength);
+        let getGroundMeshes = (mesh: Mesh) => {
             return mesh.isPickable && mesh.layerMask & Game.GROUND_LAYER && mesh.isEnabled();
         }
-        let rayPick = this._scene.pickWithRay(ray, pickableMeshes);
-        let rayHelper = new RayHelper(ray);
-        this._grounded = rayPick.hit;
+        let groundRayPick = this._scene.pickWithRay(groundRay, getGroundMeshes);
+        let groundRayHelper = new RayHelper(groundRay);
+        this._grounded = groundRayPick.hit;
         if (this._grounded){
             if (true) {
-                console.log("Standing on ground mesh: \"" + rayPick.pickedMesh.name + "\"");
+                console.log("Standing on ground mesh: \"" + groundRayPick.pickedMesh.name + "\"");
             }
-            this._transform.position.copyFromFloats(this._transform.position.x, rayPick.pickedPoint.y, this._transform.position.z);
+            this._transform.position.copyFromFloats(this._transform.position.x, groundRayPick.pickedPoint.y, this._transform.position.z);
         }
 
+        let getWallMeshes = (mesh: Mesh) => {
+            return mesh.isPickable && mesh.layerMask & Game.WALL_LAYER && mesh.isEnabled();
+        }
         /* check for walls */
+        let wallRay = new Ray(this._transform.position.add(this._wallRaycastOffset), this._wallRaycastDirection, this._wallRaycastLength);
+        let wallRayPick = this._scene.pickWithRay(groundRay, getWallMeshes);
+        this._facingWall = wallRayPick.hit;
+
         /* check for hits */
     }
 
@@ -738,13 +953,43 @@ class Player implements IDisposable{
             }
             return;
         }
+
         if (this._canMove) {
-            if (this._switchGunInput) {
+            if (this._lightAttackInput) {
+                if (this._gunDrawn) {
+                    if (this._grounded){
+                        this._changeAnimationState(this._shootGunAttack);
+                    }else{
+                        this._changeAnimationState(this._jumpShootGunAttack);
+                    }
+                } else {
+                    if (this._grounded){
+                        this._changeAnimationState(this._light1Attack);
+                    } else {
+                        this._changeAnimationState(this._jumpKickAttack);
+                    }
+                }
+            } else if (this._heavyAttackInput) {
+                if (this._gunDrawn) {
+                    if (this._grounded){
+                        this._changeAnimationState(this._shootGunAttack);
+                    }
+                    else{
+                        this._changeAnimationState(this._jumpShootGunAttack)
+                    }
+                } else {
+                    if (this._grounded){
+                        this._changeAnimationState(this._heavy1Attack);
+                    } else {
+                        this._changeAnimationState(this._jumpDiveKickAttack);
+                    }
+                }
+            } else if (this._switchGunInput) {
                 if (this._gunDrawn) {
                     this._changeAnimationState(this._switchGunReverseAnimation);
-                 } else {
+                } else {
                     this._changeAnimationState(this._switchGunAnimation);
-                 }
+                }
             } else if ((this._dashCooldownTimerElapsed <= 0 && this._dashInput) || this._dashTimerElapsed > 0) {
                 if (this._gunDrawn) {
                     this._changeAnimationState(this._dashGunAnimation);
@@ -757,10 +1002,6 @@ class Player implements IDisposable{
                 } else {
                     this._changeAnimationState(this._jumpAnimation);
                 }
-            } else if (this._lightAttackInput) {
-                this._changeAnimationState(this._light1Attack);
-            } else if (this._grounded && this._heavyAttackInput) {
-                this._changeAnimationState(this._heavy1Attack);
             } else if (!this._grounded) {
                 if (this._gunDrawn) {
                     this._changeAnimationState(this._fallGunAnimation);
