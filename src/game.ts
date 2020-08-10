@@ -919,8 +919,8 @@ class Player implements IDisposable{
                 }
                 break;
             case DeviceType.DualShock:
-                this._moveInput.copyFromFloats(this._deviceSource.getInput(DualShockInput.LStickXAxis),
-                                               this._deviceSource.getInput(DualShockInput.LStickYAxis),
+                this._moveInput.copyFromFloats(this._deviceSource.getInput(DualShockInput.LStickXAxis) + this._deviceSource.getInput(DualShockInput.DPadRight) - this._deviceSource.getInput(DualShockInput.DPadLeft),
+                                               this._deviceSource.getInput(DualShockInput.LStickYAxis) + this._deviceSource.getInput(DualShockInput.DPadUp)    - this._deviceSource.getInput(DualShockInput.DPadDown),
                                                0);
                 this._jumpInput = this._deviceSource.getInput(DualShockButton.Cross) != 0;
                 this._dashInput = this._deviceSource.getInput(DualShockButton.R1) != 0;
@@ -929,7 +929,9 @@ class Player implements IDisposable{
                 this._switchGunInput = this._deviceSource.getInput(DualShockButton.Circle) != 0;
                 break;
             case DeviceType.Switch:
-                this._moveInput.copyFromFloats(this._deviceSource.getInput(SwitchInput.LStickXAxis), this._deviceSource.getInput(SwitchInput.LStickYAxis), 0);
+                this._moveInput.copyFromFloats(this._deviceSource.getInput(SwitchInput.LStickXAxis) + this._deviceSource.getInput(SwitchInput.DPadRight) - this._deviceSource.getInput(SwitchInput.DPadLeft),
+                                               this._deviceSource.getInput(SwitchInput.LStickYAxis) + this._deviceSource.getInput(SwitchInput.DPadUp)    - this._deviceSource.getInput(SwitchInput.DPadDown),
+                                               0);
                 this._jumpInput = this._deviceSource.getInput(SwitchInput.B) != 0;
                 this._dashInput = this._deviceSource.getInput(SwitchInput.R) != 0;
                 this._lightAttackInput = this._deviceSource.getInput(SwitchInput.Y) != 0;
@@ -941,7 +943,9 @@ class Player implements IDisposable{
                 break;
             case DeviceType.Xbox:
             case DeviceType.Generic:
-                this._moveInput.copyFromFloats(this._deviceSource.getInput(XboxInput.LStickXAxis), this._deviceSource.getInput(XboxInput.LStickYAxis), 0);
+                this._moveInput.copyFromFloats(this._deviceSource.getInput(XboxInput.LStickXAxis) + this._deviceSource.getInput(XboxInput.DPadRight) - this._deviceSource.getInput(XboxInput.DPadLeft),
+                                               this._deviceSource.getInput(XboxInput.LStickYAxis) + this._deviceSource.getInput(XboxInput.DPadUp)    - this._deviceSource.getInput(XboxInput.DPadDown),
+                                               0);
                 this._jumpInput = this._deviceSource.getInput(XboxInput.A) != 0;
                 this._dashInput = this._deviceSource.getInput(XboxInput.RB) != 0;
                 this._lightAttackInput = this._deviceSource.getInput(XboxInput.X) != 0;
