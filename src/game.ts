@@ -94,8 +94,10 @@ class Player implements IDisposable{
     private _groundRaycastOffset: Vector3 =  new Vector3(0, 0.2, 0);
     private _groundRaycastLength: number = 0.21;
     private _wallRaycastDirection: Vector3 = new Vector3(1, 0, 0);
+    private _wallRaycastActual: Vector3 = new Vector3(0,0,0);
     private _wallRaycastOffset: Vector3 = new Vector3(0.2, 0, 0);
-    private _wallRaycastLength: number = 0.2;
+    private _wallRaycastPositionActual: Vector3 = new Vector3();
+    private _wallRaycastLength: number = 0.3;
     private _knockbackDirection: Vector3 = new Vector3();
     private _wallCollider: Mesh;
     private _hurtboxes: Mesh[];
@@ -113,6 +115,14 @@ class Player implements IDisposable{
     private _dashCooldownTimer: number = 0.25;
     private _dashCooldownTimerElapsed: number = 0;
     private _dashDirection: number = 1;
+    private _wallRunSpeed: number = 5;
+    private _wallRunSpeedCurrent: number = 0;
+    private _wallRunSpeedSlowdownRate: number = 8;
+    private _wallJumpSpeed: Vector3 = new Vector3(6, 4, 0);
+    private _wallJumpSpeedCurrent: Vector3 = new Vector3(0, 0, 0);
+    private _wallJumpTimer: number = 0.33;
+    private _wallJumpTimerElapsed: number = 0;
+    private _wallJumpSpeedSlowdownRate: number = 50;
 
     /* Animation variables */
     private _spritePlayer: Sprite;
@@ -133,6 +143,8 @@ class Player implements IDisposable{
     private _dashGunAnimation: AnimationState = new AnimationState();
     private _switchGunAnimation: AnimationState = new AnimationState();
     private _switchGunReverseAnimation: AnimationState = new AnimationState();
+    private _wallRunAnimation: AnimationState = new AnimationState();
+    private _wallRunFlipAnimation: AnimationState = new AnimationState();
 
     /* Attack variables */
     private _light1Attack: Attack = new Attack();
@@ -759,6 +771,81 @@ class Player implements IDisposable{
             console.log("leaving jumpShootGunAttack state");
         }
 
+        this._wallRunAnimation.player = this;
+        this._wallRunAnimation.spritePlayer = this._spritePlayer;
+        this._wallRunAnimation.from = 18;
+        this._wallRunAnimation.to = 27;
+        this._wallRunAnimation.speed = 50;
+        this._wallRunAnimation.canCancelAfter = 18;
+        this._wallRunAnimation.loop = true;
+        this._wallRunAnimation.start = function ()
+        {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = true;
+            this.player._wallRunSpeedCurrent = this.player._wallRunSpeed;
+            console.log("entering wallRun state");
+        }
+        this._wallRunAnimation.update = () => {
+            this._wallRunSpeedCurrent -= this._deltaTime * this._wallRunSpeedSlowdownRate;
+            /* Allow the player to stop wall running when wallRun is released */
+            if ((!this._flipped && this._moveInput.x <= 0 || this._flipped && this._moveInput.x >= 0)
+                || this._wallRunSpeedCurrent <= 0){
+                this._changeAnimationState(this._wallRunFlipAnimation);
+            }
+        }
+        this._wallRunAnimation.onAnimationEnd = () => {
+            this._changeAnimationState(this._fallAnimation);
+        }
+        this._wallRunAnimation.doesMovement = true;
+        this._wallRunAnimation.doMovement = () => {
+            this._velocity.copyFromFloats(0, this._wallRunSpeedCurrent, 0);
+            this._transform.position.addInPlace(this._velocity.scale(this._deltaTime));
+        }
+        this._wallRunAnimation.stop = function () {
+            this.player._wallRunSpeedCurrent = 0;
+            console.log("leaving wallRun state");
+        }
+
+        this._wallRunFlipAnimation.player = this;
+        this._wallRunFlipAnimation.spritePlayer = this._spritePlayer;
+        this._wallRunFlipAnimation.from = 51;
+        this._wallRunFlipAnimation.to = 54;
+        this._wallRunFlipAnimation.speed = 51;
+        this._wallRunFlipAnimation.canCancelAfter = 51;
+        this._wallRunFlipAnimation.loop = false;
+        this._wallRunFlipAnimation.start = function ()
+        {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canBeHit = true;
+            this.player._canWallRun = true;
+            this.player._wallJumpSpeedCurrent.copyFrom(this.player._wallJumpSpeed);
+            console.log("entering wallRunFlip state");
+        }
+        this._wallRunFlipAnimation.update = () => {
+            this._wallJumpTimerElapsed -= this._deltaTime;
+            this._wallJumpSpeedCurrent.copyFromFloats(this._wallJumpSpeedCurrent.x, this._wallJumpSpeedCurrent.y - this._deltaTime * this._wallJumpSpeedSlowdownRate, this._wallJumpSpeedCurrent.z);
+            /* Allow the player to stop wall running when wallRun is released */
+            if (this._wallJumpTimerElapsed <= 0){
+                this._changeAnimationState(this._wallRunFlipAnimation);
+            }
+        }
+        this._wallRunFlipAnimation.doesMovement = true;
+        this._wallRunFlipAnimation.doMovement = () => {
+            this._velocity.copyFromFloats(this._flipped ? this._wallJumpSpeedCurrent.x : -this._wallJumpSpeedCurrent.x, this._wallJumpSpeedCurrent.y, this._wallJumpSpeedCurrent.z);
+            this._transform.position.addInPlace(this._velocity.scale(this._deltaTime));
+        }
+        this._wallRunFlipAnimation.onAnimationEnd = () => {
+            this._changeAnimationState(this._fallAnimation);
+        }
+        this._wallRunFlipAnimation.stop = function () {
+            this._wallJumpSpeedCurrent = 0;
+            console.log("leaving wallRunFlip state");
+        }
+
+
         return Promise.resolve();
     }
 
@@ -892,9 +979,17 @@ class Player implements IDisposable{
             return mesh.isPickable && mesh.layerMask & Game.WALL_LAYER && mesh.isEnabled();
         }
         /* check for walls */
-        let wallRay = new Ray(this._transform.position.add(this._wallRaycastOffset), this._wallRaycastDirection, this._wallRaycastLength);
-        let wallRayPick = this._scene.pickWithRay(groundRay, getWallMeshes);
+        this._wallRaycastDirection.rotateByQuaternionToRef(this._transform.rotationQuaternion, this._wallRaycastActual);
+        this._wallRaycastOffset.rotateByQuaternionToRef(this._transform.rotationQuaternion, this._wallRaycastPositionActual);
+        this._wallRaycastPositionActual.addInPlace(this._transform.position);
+        let wallRay = new Ray(this._wallRaycastPositionActual, this._wallRaycastActual, this._wallRaycastLength);
+        let wallRayPick = this._scene.pickWithRay(wallRay, getWallMeshes);
         this._facingWall = wallRayPick.hit;
+        if (this._facingWall){
+            if (true){
+                console.log("Touching wall mesh: \"" + wallRayPick.pickedMesh.name + "\"");
+            }
+        }
 
         /* check for hits */
     }
@@ -934,11 +1029,13 @@ class Player implements IDisposable{
 
     private doHorizontalMovement(moveVector: Vector3): void {
         let moveSpeed: Vector3 = this._moveInput.scale(this._moveSpeed);
+        moveSpeed.y = 0;
+        moveSpeed.z = 0;
         moveVector.addInPlace(moveSpeed);
     }
 
     public doJumpMovement(moveVector: Vector3): void {
-        moveVector.addInPlace(new Vector3(0, this._jumpSpeedCurrent));
+        moveVector.addInPlaceFromFloats(0, this._jumpSpeedCurrent, 0);
     }
 
     public doDashMovement(moveVector: Vector3): void {
@@ -965,7 +1062,9 @@ class Player implements IDisposable{
         }
 
         if (this._canMove) {
-            if (this._lightAttackInput) {
+            if ((this._facingWall && this._canWallRun) || this._wallJumpTimerElapsed > 0){
+                this._changeAnimationState(this._wallRunAnimation);
+            } else if (this._lightAttackInput) {
                 if (this._gunDrawn) {
                     if (this._grounded){
                         this._changeAnimationState(this._shootGunAttack);
