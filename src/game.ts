@@ -42,11 +42,20 @@ class AnimationState extends AnimationStateBase {
 
 class Attack extends AnimationState {
     hitboxes: Mesh[];
-    startupFrames: number /* how many "frames" does it take before our hitbox becomes active? */
-    activeFrames: number; /* how long is our hitbox active for? */
-    recoveryFrames: number; /* how long is the player unable to do any other actions after the move deactivates? */
+    startupFrame: number /* how many "frames" does it take before our hitbox becomes active? */
+    activeFrame: number; /* how long is our hitbox active for? */
+    recoveryFrame: number; /* how long is the player unable to do any other actions after the move deactivates? */
     hitstun: number; /* how long is the player stuck in a hit animation after being hit by this attack? */
-    launchDirection: Vector2; /* where should the player be launched after being hit by this attack? */
+    hitCastOffsets: Vector3[]; /* where should the hit detection ray start? */
+    hitCastVectors: Vector3[]; /* where should the hit detection ray go? */
+    launchDirection: Vector3; /* where should the player be launched after being hit by this attack? */
+    damage: number;
+}
+
+class HitEvent {
+    hitPlayer: Player;
+    hurtPlayer: Player;
+    attack: Attack;
 }
 
 class Player implements IDisposable{
@@ -73,6 +82,7 @@ class Player implements IDisposable{
     private _switchGunInput: boolean;
 
     /* player state variables */
+    private _dead: boolean;
     private _canMove: boolean;
     private _canJump: boolean;
     private _grounded: boolean;
@@ -87,6 +97,10 @@ class Player implements IDisposable{
     private _currentAnimation: AnimationState;
     private _flipped: boolean = false; /* true means that the player is facing left (-X), false means the player is facing right (+X) */
     private _gunDrawn: boolean = false;
+    private _health: number;
+    private _maxHealth: number = 100;
+    private _dieTimer: number = 5;
+    private _dieTimerCurrent: number;
 
     /* physics related variables */
     private _gravity: Vector3 = new Vector3(0, -5, 0);
@@ -145,6 +159,7 @@ class Player implements IDisposable{
     private _switchGunReverseAnimation: AnimationState = new AnimationState();
     private _wallRunAnimation: AnimationState = new AnimationState();
     private _wallRunFlipAnimation: AnimationState = new AnimationState();
+    private _dieAnimation: AnimationState = new AnimationState();
 
     /* Attack variables */
     private _light1Attack: Attack = new Attack();
@@ -155,6 +170,8 @@ class Player implements IDisposable{
     private _jumpDiveKickAttack: Attack = new Attack();
     private _shootGunAttack: Attack = new Attack();
     private _jumpShootGunAttack: Attack = new Attack();
+    private _hitCastOffsetActual : Vector3 = new Vector3();
+    private _hitCastVectorActual : Vector3 = new Vector3();
 
     /* constructor */
     constructor(game: Game, scene: Scene, playerIndex: number, deviceSource: DeviceSource<any>) {
@@ -175,7 +192,7 @@ class Player implements IDisposable{
 
     private _init(): Promise<any> {
         const promises: Promise<any>[] = []
-        this._transform = new TransformNode(this._getPlayerName(), this._scene);
+        this._transform = new TransformNode(this.getName(), this._scene);
         this._transform.rotate(Vector3.Up(), 2*Math.PI); /* manually rotate the player so we use TransformNode.rotationQuaternion instead of TranformNode.rotation */
 
         this._setupColliders()
@@ -192,7 +209,8 @@ class Player implements IDisposable{
         this._transform.position.copyFrom(this._game.getSpawnPosition(this._playerIndex));
         this._transform.computeWorldMatrix();
         /* this._ammo = this._maxAmmo */
-        /* this._health = this._maxHealth;*/
+        this._health = this._maxHealth;
+        this._dead = false;
     }
 
     /* Animations */
@@ -560,11 +578,6 @@ class Player implements IDisposable{
             this._dashCooldownTimerElapsed = this._dashCooldownTimer;
         }
 
-        /* */
-        //_hitAnimation: AnimationState = new AnimationState();
-        //_hitGunAnimation: AnimationState = new AnimationState();
-
-
         this._light1Attack.player = this;
         this._light1Attack.spritePlayer = this._spritePlayer;
         this._light1Attack.from = 62;
@@ -593,6 +606,14 @@ class Player implements IDisposable{
         this._light1Attack.stop = function () {
             console.log("leaving lightAttack1 state");
         }
+        this._light1Attack.hitCastOffsets = [new Vector3(0, 0.53, 0)];
+        this._light1Attack.hitCastVectors = [new Vector3(0.42, 0, 0)];
+        this._light1Attack.hitstun = 0.1;
+        this._light1Attack.launchDirection = new Vector3(0.1, 0, 0);
+        this._light1Attack.damage = 5;
+        this._light1Attack.startupFrame = 62;
+        this._light1Attack.activeFrame = 63;
+        this._light1Attack.recoveryFrame = 64;
 
         this._light2Attack.player = this;
         this._light2Attack.spritePlayer = this._spritePlayer;
@@ -622,6 +643,14 @@ class Player implements IDisposable{
         this._light2Attack.stop = function () {
             console.log("leaving lightAttack2 state");
         }
+        this._light2Attack.hitCastOffsets = [new Vector3(0, 0.53, 0)];
+        this._light2Attack.hitCastVectors = [new Vector3(0.42, 0, 0)];
+        this._light2Attack.hitstun = 0.1;
+        this._light2Attack.launchDirection = new Vector3(0.1, 0, 0);
+        this._light2Attack.damage = 5;
+        this._light2Attack.startupFrame = 66;
+        this._light2Attack.activeFrame = 67;
+        this._light2Attack.recoveryFrame = 68;
 
         this._light3Attack.player = this;
         this._light3Attack.spritePlayer = this._spritePlayer;
@@ -646,6 +675,14 @@ class Player implements IDisposable{
         this._light3Attack.stop = function () {
             console.log("leaving lightAttack3 state");
         }
+        this._light3Attack.hitCastOffsets = [new Vector3(0, 0, 0)];
+        this._light3Attack.hitCastVectors = [new Vector3(0.45, 0.72, 0)];
+        this._light3Attack.hitstun = 0.25;
+        this._light3Attack.launchDirection = new Vector3(5, 15, 0);
+        this._light3Attack.damage = 10;
+        this._light3Attack.startupFrame = 71;
+        this._light3Attack.activeFrame = 73;
+        this._light3Attack.recoveryFrame = 75;
 
         this._heavy1Attack.player = this;
         this._heavy1Attack.spritePlayer = this._spritePlayer;
@@ -670,6 +707,14 @@ class Player implements IDisposable{
         this._heavy1Attack.stop = function () {
             console.log("leaving heavyAttack1 state");
         }
+        this._heavy1Attack.hitCastOffsets = [new Vector3(0, 0, 0)];
+        this._heavy1Attack.hitCastVectors = [new Vector3(0.61, 0, 0)];
+        this._heavy1Attack.hitstun = 0.5;
+        this._heavy1Attack.launchDirection = new Vector3(15, 2.5, 0);
+        this._heavy1Attack.damage = 20;
+        this._heavy1Attack.startupFrame = 77;
+        this._heavy1Attack.activeFrame = 83;
+        this._heavy1Attack.recoveryFrame = 84;
 
         this._jumpKickAttack.player = this;
         this._jumpKickAttack.spritePlayer = this._spritePlayer;
@@ -812,7 +857,7 @@ class Player implements IDisposable{
         this._wallRunFlipAnimation.spritePlayer = this._spritePlayer;
         this._wallRunFlipAnimation.from = 51;
         this._wallRunFlipAnimation.to = 54;
-        this._wallRunFlipAnimation.speed = 51;
+        this._wallRunFlipAnimation.speed = 50;
         this._wallRunFlipAnimation.canCancelAfter = 51;
         this._wallRunFlipAnimation.loop = false;
         this._wallRunFlipAnimation.start = function ()
@@ -845,12 +890,53 @@ class Player implements IDisposable{
             console.log("leaving wallRunFlip state");
         }
 
+        this._hitAnimation.player = this;
+        this._hitAnimation.spritePlayer = this._spritePlayer;
+        this._hitAnimation.from = 87;
+        this._hitAnimation.to = 87;
+        this._hitAnimation.speed = 50;
+        this._hitAnimation.loop = false;
+        this._hitAnimation.canCancelAfter = 87;
+        this._hitAnimation.start = function()
+        {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canBeHit = false;
+            this.player._canWallRun = false;
+            console.log("entering Hit state");
+        }
+        this._hitAnimation.update = () => {
+            if (this._hitTimer <= 0){
+                this._changeAnimationState(this._idleAnimation);
+            }
+        };
+
+        this._dieAnimation.player = this;
+        this._dieAnimation.spritePlayer = this._spritePlayer;
+        this._dieAnimation.from = 87;
+        this._dieAnimation.to = 87;
+        this._dieAnimation.speed = 50;
+        this._dieAnimation.loop = false;
+        this._dieAnimation.canCancelAfter = 87;
+        this._dieAnimation.start = function()
+        {
+            this.playAnimation();
+            this.player._canMove = false;
+            this.player._canBeHit = false;
+            this.player._canWallRun = false;
+            console.log("entering Die state");
+            this.player._dieTimerCurrent = 0;
+        }
+        this._dieAnimation.update = () => {
+            this._dieTimerCurrent += this._deltaTime;
+        };
+
 
         return Promise.resolve();
     }
 
     private _setupSpritePlayer(): void{
-        this._spritePlayerTransform = new TransformNode(this._getPlayerName() + "_SpritePlayer", this._scene);
+        this._spritePlayerTransform = new TransformNode(this.getName() + "_SpritePlayer", this._scene);
         this._spritePlayerTransform.setParent(this._transform);
         this._spritePlayerTransform.position.copyFrom(this._spritePlayerOffset);
         switch(this._playerIndex) {
@@ -973,7 +1059,7 @@ class Player implements IDisposable{
         let groundRayHelper = new RayHelper(groundRay);
         this._grounded = groundRayPick.hit;
         if (this._grounded){
-            if (true) {
+            if (false) {
                 console.log("Standing on ground mesh: \"" + groundRayPick.pickedMesh.name + "\"");
             }
             this._transform.position.copyFromFloats(this._transform.position.x, groundRayPick.pickedPoint.y, this._transform.position.z);
@@ -996,6 +1082,40 @@ class Player implements IDisposable{
         }
 
         /* check for hits */
+        if (this._currentAnimation instanceof Attack){
+            //
+            let currentAttack = (this._currentAnimation as Attack);
+            let frame = this._spritePlayer.cellIndex;
+
+            let getHurtboxes = (mesh: Mesh) => {
+                return mesh.isPickable && mesh.layerMask & Game.HURTBOX_LAYER && mesh.isEnabled() && mesh.parent != this._transform;
+            }
+
+            if (frame >= currentAttack.activeFrame && frame < currentAttack.recoveryFrame){
+                let attackHit = false;
+                for(let i = 0; i < currentAttack.hitCastVectors.length; ++i){
+                    this._hitCastOffsetActual.copyFrom(currentAttack.hitCastOffsets[Math.min(i, currentAttack.hitCastOffsets.length-1)]);
+                    this._hitCastOffsetActual.rotateByQuaternionToRef(this._transform.rotationQuaternion, this._hitCastOffsetActual);
+                    this._hitCastOffsetActual.addInPlace(this._transform.position);
+
+                    this._hitCastVectorActual.copyFrom(currentAttack.hitCastVectors[i]);
+                    this._hitCastVectorActual.rotateByQuaternionToRef(this._transform.rotationQuaternion, this._hitCastVectorActual);
+                    let hitRay = new Ray(this._hitCastOffsetActual, this._hitCastVectorActual, this._hitCastVectorActual.length());
+                    let hitRayPick = this._scene.pickWithRay(hitRay, getHurtboxes);
+                    if (hitRayPick.hit){
+                        let hurtPlayer : Player;
+                        let hurtBox = hitRayPick.pickedMesh as Mesh;
+                        game.players.forEach((player) => {
+                            if (player._hurtboxes.indexOf(hurtBox) != -1 ){
+                                hurtPlayer = player;
+                                return;
+                            }
+                        });
+                        this._game.reportHit(<HitEvent>{hitPlayer: this, hurtPlayer: hurtPlayer, attack: currentAttack});
+                    }
+                }
+            }
+        }
     }
 
     private _doMovement(): void {
@@ -1056,16 +1176,20 @@ class Player implements IDisposable{
     }
 
     private _doStateTransition(): void {
-        if (this._hitTimer > 0) {
+        if (this._dead){
+            if (this._dieTimerCurrent >= this._dieTimer){
+                this.reset();
+                return;
+            }
+            this._changeAnimationState(this._dieAnimation);
+        } else if (this._hitTimer > 0) {
             if (this._gunDrawn) {
                 this._changeAnimationState(this._hitGunAnimation);
             } else {
                 this._changeAnimationState(this._hitAnimation)
             }
             return;
-        }
-
-        if (this._canMove) {
+        } else if (this._canMove) {
             if ((this._facingWall && this._canWallRun) || this._wallJumpTimerElapsed > 0){
                 this._changeAnimationState(this._wallRunAnimation);
             } else if (this._lightAttackInput) {
@@ -1140,7 +1264,7 @@ class Player implements IDisposable{
     private _setupColliders(): void {
         this._hurtboxes = [];
         this._hitboxes = [];
-        let hurtbox = MeshBuilder.CreateBox(this._getPlayerName()+"_hurtbox", {
+        let hurtbox = MeshBuilder.CreateBox(this.getName()+"_hurtbox", {
             width: 0.5, height: 1, depth: 0.5
         }, this._scene);
         hurtbox.layerMask = Game.HURTBOX_LAYER;
@@ -1150,6 +1274,33 @@ class Player implements IDisposable{
         hurtbox.position = new Vector3(0, 0.5, 0);
         hurtbox.bakeCurrentTransformIntoVertices();
         hurtbox.setParent(this._transform);
+    }
+
+    public onHit(hit: HitEvent): void {
+        if (true){
+            console.log(this.getName() + " hit By " + hit.hitPlayer.getName());
+        }
+
+        if (this._canBeHit){
+            this._hitTimer = hit.attack.hitstun;
+            this._takeDamage(hit.attack.damage);
+        }
+    }
+
+    private _takeDamage(damage: number){
+        if (true){
+            console.log(this.getName() + " took " + damage + " damage.");
+        }
+        this._health -= damage;
+        if (this._health <= 0){
+            this.die();
+        }
+    }
+
+    public die(){
+        console.log(this.getName() + " died.");
+        this._changeAnimationState(this._dieAnimation);
+        this._dead = true;
     }
 
     public dispose(){
@@ -1169,11 +1320,10 @@ class Player implements IDisposable{
         }
     }
 
-    private _getPlayerName(): string{
+    public  getName(): string{
         return "Player_" + this._playerIndex;
     }
 }
-
 
 class Game {
     canvas: HTMLCanvasElement;
@@ -1207,6 +1357,9 @@ class Game {
 
     /* Spawn related Variables */
     _spawnPositions: Vector3[] = [new Vector3(0, 0, 0), new Vector3(0, 0, 0)];
+
+    /* Hit resolution variables */
+    _pendingHits: {hitPlayer: Player, hurtPlayer: Player, attack:Attack}[] = [];
 
     /* layering related variables */
     static DEFAULT_LAYER    = 0x0CFFFFFF;
@@ -1256,11 +1409,16 @@ class Game {
                 }
             });
         }
+        MeshBuilder.CreateBox("helper", {size: 0.1}, gameScene);
 
         /* setup promises to load assets asynchronously */
         let promises: Promise<any>[] = [];
         promises.push(this.initializeBackground());
         promises.push(this.loadCharacterAssets());
+
+        gameScene.onBeforeRenderObservable.add(() =>{
+            this._resolveHitEvents(); /* we do this before the players' next update in order to eliminate port priority for hit resolution. */
+        })
 
         /* setup game to run the game scene every render loop */
         engine.runRenderLoop(function () {
@@ -1371,6 +1529,18 @@ class Game {
         for (let i = 0; i < this.devices.length && i < this._maxPlayers; ++i){
             const device = this.devices[i];
             this.players.push(new Player(this, this.gameScene, i, this.deviceSourceManager.getDeviceSource(device.deviceType, device.deviceSlot)));
+        }
+    }
+
+    public reportHit(hit: HitEvent){
+        this._pendingHits.push(hit);
+    }
+
+    private _resolveHitEvents(){
+        let currentHit: HitEvent;
+        while(this._pendingHits.length > 0){
+            currentHit = this._pendingHits.shift();
+            currentHit.hurtPlayer.onHit(currentHit);
         }
     }
 
