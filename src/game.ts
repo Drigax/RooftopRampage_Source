@@ -607,7 +607,7 @@ class Player implements IDisposable{
             console.log("leaving lightAttack1 state");
         }
         this._light1Attack.hitCastOffsets = [new Vector3(0, 0.53, 0)];
-        this._light1Attack.hitCastVectors = [new Vector3(0.42, 0, 0)];
+        this._light1Attack.hitCastVectors = [new Vector3(0.64, 0, 0)];
         this._light1Attack.hitstun = 0.1;
         this._light1Attack.launchDirection = new Vector3(0.1, 0, 0);
         this._light1Attack.damage = 5;
@@ -644,7 +644,7 @@ class Player implements IDisposable{
             console.log("leaving lightAttack2 state");
         }
         this._light2Attack.hitCastOffsets = [new Vector3(0, 0.53, 0)];
-        this._light2Attack.hitCastVectors = [new Vector3(0.42, 0, 0)];
+        this._light2Attack.hitCastVectors = [new Vector3(0.64, 0, 0)];
         this._light2Attack.hitstun = 0.1;
         this._light2Attack.launchDirection = new Vector3(0.1, 0, 0);
         this._light2Attack.damage = 5;
@@ -676,7 +676,7 @@ class Player implements IDisposable{
             console.log("leaving lightAttack3 state");
         }
         this._light3Attack.hitCastOffsets = [new Vector3(0, 0, 0)];
-        this._light3Attack.hitCastVectors = [new Vector3(0.45, 0.72, 0)];
+        this._light3Attack.hitCastVectors = [new Vector3(0.64, 0.72, 0)];
         this._light3Attack.hitstun = 0.25;
         this._light3Attack.launchDirection = new Vector3(5, 15, 0);
         this._light3Attack.damage = 10;
@@ -708,10 +708,10 @@ class Player implements IDisposable{
             console.log("leaving heavyAttack1 state");
         }
         this._heavy1Attack.hitCastOffsets = [new Vector3(0, 0, 0)];
-        this._heavy1Attack.hitCastVectors = [new Vector3(0.61, 0, 0)];
+        this._heavy1Attack.hitCastVectors = [new Vector3(0.82, 0, 0)];
         this._heavy1Attack.hitstun = 0.5;
         this._heavy1Attack.launchDirection = new Vector3(15, 2.5, 0);
-        this._heavy1Attack.damage = 20;
+        this._heavy1Attack.damage = 25;
         this._heavy1Attack.startupFrame = 77;
         this._heavy1Attack.activeFrame = 83;
         this._heavy1Attack.recoveryFrame = 84;
@@ -739,6 +739,14 @@ class Player implements IDisposable{
         this._jumpKickAttack.stop = function () {
             console.log("leaving jumpKickAttack state");
         }
+        this._jumpKickAttack.hitCastOffsets = [new Vector3(0, 0, 0)];
+        this._jumpKickAttack.hitCastVectors = [new Vector3(0.70, 0, 0)];
+        this._jumpKickAttack.hitstun = 0.3;
+        this._jumpKickAttack.launchDirection = new Vector3(10, 2.5, 0);
+        this._jumpKickAttack.damage = 10;
+        this._jumpKickAttack.startupFrame = 48;
+        this._jumpKickAttack.activeFrame = 49;
+        this._jumpKickAttack.recoveryFrame = 50;
 
         this._jumpDiveKickAttack.player = this;
         this._jumpDiveKickAttack.spritePlayer = this._spritePlayer;
@@ -763,6 +771,14 @@ class Player implements IDisposable{
         this._jumpDiveKickAttack.stop = function () {
             console.log("leaving jumpDiveKickAttack state");
         }
+        this._jumpDiveKickAttack.hitCastOffsets = [new Vector3(0, 0.5, 0)];
+        this._jumpDiveKickAttack.hitCastVectors = [new Vector3(0.64, -0.72, 0)];
+        this._jumpDiveKickAttack.hitstun = 0.3;
+        this._jumpDiveKickAttack.launchDirection = new Vector3(10, -20, 0);
+        this._jumpDiveKickAttack.damage = 20;
+        this._jumpDiveKickAttack.startupFrame = 49;
+        this._jumpDiveKickAttack.activeFrame = 50;
+        this._jumpDiveKickAttack.recoveryFrame = 51;
 
         this._shootGunAttack.player = this;
         this._shootGunAttack.spritePlayer = this._spritePlayer;
@@ -789,6 +805,14 @@ class Player implements IDisposable{
         this._shootGunAttack.stop = function () {
             console.log("leaving shootGunAttack state");
         }
+        this._shootGunAttack.hitCastOffsets = [new Vector3(0, 0.53, 0)];
+        this._shootGunAttack.hitCastVectors = [new Vector3(100, 0, 0)];
+        this._shootGunAttack.hitstun = 0.3;
+        this._shootGunAttack.launchDirection = new Vector3(20, 10, 0);
+        this._shootGunAttack.damage = 15;
+        this._shootGunAttack.startupFrame = 149;
+        this._shootGunAttack.activeFrame = 150;
+        this._shootGunAttack.recoveryFrame = 151;
 
         this._jumpShootGunAttack.player = this;
         this._jumpShootGunAttack.spritePlayer = this._spritePlayer;
@@ -815,6 +839,14 @@ class Player implements IDisposable{
         this._jumpShootGunAttack.stop = function () {
             console.log("leaving jumpShootGunAttack state");
         }
+        this._jumpShootGunAttack.hitCastOffsets = [new Vector3(0, 0.53, 0)];
+        this._jumpShootGunAttack.hitCastVectors = [new Vector3(100, 0, 0)];
+        this._jumpShootGunAttack.hitstun = 0.3;
+        this._jumpShootGunAttack.launchDirection = new Vector3(20, 10, 0);
+        this._jumpShootGunAttack.damage = 15;
+        this._jumpShootGunAttack.startupFrame = 153;
+        this._jumpShootGunAttack.activeFrame = 154;
+        this._jumpShootGunAttack.recoveryFrame = 155;
 
         this._wallRunAnimation.player = this;
         this._wallRunAnimation.spritePlayer = this._spritePlayer;
