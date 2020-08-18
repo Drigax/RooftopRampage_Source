@@ -683,7 +683,7 @@ export class Player implements IDisposable {
         this._lightRapidJabAttack.stop = function () {
             console.log("leaving lightAttack3 state");
         }
-        this._lightRapidJabAttack.hitCastOffsets = [new Vector3(0, 0, 0)];
+        this._lightRapidJabAttack.hitCastOffsets = [new Vector3(0, 0.2, 0)];
         this._lightRapidJabAttack.hitCastVectors = [new Vector3(0.64, 0.72, 0)];
         this._lightRapidJabAttack.hitstun = 0.25;
         this._lightRapidJabAttack.launchDirection = new Vector3(1, 10, 0);
@@ -715,7 +715,7 @@ export class Player implements IDisposable {
         this._heavy1Attack.stop = function () {
             console.log("leaving heavyAttack1 state");
         }
-        this._heavy1Attack.hitCastOffsets = [new Vector3(0, 0, 0)];
+        this._heavy1Attack.hitCastOffsets = [new Vector3(0, 0.4, 0)];
         this._heavy1Attack.hitCastVectors = [new Vector3(0.82, 0, 0)];
         this._heavy1Attack.hitstun = 0.5;
         this._heavy1Attack.launchDirection = new Vector3(10, 5, 0);
@@ -747,7 +747,7 @@ export class Player implements IDisposable {
         this._jumpKickAttack.stop = function () {
             console.log("leaving jumpKickAttack state");
         }
-        this._jumpKickAttack.hitCastOffsets = [new Vector3(0, 0, 0)];
+        this._jumpKickAttack.hitCastOffsets = [new Vector3(0, 0.53, 0)];
         this._jumpKickAttack.hitCastVectors = [new Vector3(0.70, 0, 0)];
         this._jumpKickAttack.hitstun = 0.3;
         this._jumpKickAttack.launchDirection = new Vector3(10, 2.5, 0);
@@ -1340,7 +1340,7 @@ export class Player implements IDisposable {
         let hurtbox = MeshBuilder.CreateBox(this.getName()+"_hurtbox", {
             width: 0.5, height: 1, depth: 0.5
         }, this._scene);
-        hurtbox.layerMask = Game.HURTBOX_LAYER | Game.DEFAULT_LAYER;
+        hurtbox.layerMask = Game.HURTBOX_LAYER;
         this._hurtboxes.push(hurtbox);
 
         /* offset the player collider such that the transform origin is at the collider's bottom */
