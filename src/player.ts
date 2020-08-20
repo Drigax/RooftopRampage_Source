@@ -82,10 +82,12 @@ export class Player implements IDisposable {
     /* player state variables */
     private _dead: boolean;
     private _canMove: boolean;
+    private _canTransition: boolean;
     private _canJump: boolean;
     private _grounded: boolean;
     private _canBeHit: boolean;
     private _canWallRun: boolean;
+    private _wallRanAlready: boolean;
     private _facingWall: boolean;
     private _isWallRunning: boolean;
     private _wallRunningJump: boolean;
@@ -180,6 +182,12 @@ export class Player implements IDisposable {
     private _hitCastOffsetActual : Vector3 = new Vector3();
     private _hitCastVectorActual : Vector3 = new Vector3();
 
+    /* Attack special movement variables */
+    private _lightFinisherAttackVelocity: Vector3 = new Vector3(25, 0, 0);
+    private _lightFinisherAttackVelocityCurrent: Vector3 = new Vector3();
+    private _jumpDiveKickAttackVelocity: Vector3 = new Vector3(6, -6, 0);
+    private _jumpDiveKickAttackVelocityCurrent: Vector3 = new Vector3();
+
     /* constructor */
     constructor(game: Game, scene: Scene, playerIndex: number, deviceSource: DeviceSource<any>) {
         console.log("Adding player - " + playerIndex);
@@ -227,7 +235,7 @@ export class Player implements IDisposable {
         /* NOTE: The animation frame data can be defined and loaded from JSON, or some other
                  source if you want to support extensible animations, but for the
                  sake of implementation complexity, I decided to statically define
-                 the animation and state logic. */
+                 the animation and state logic. WARNING: LOTS OF HARD CODED VALUES */
 
         /* idle frame data and state logic */
         this._idleAnimation.player = this;
@@ -240,9 +248,11 @@ export class Player implements IDisposable {
         this._idleAnimation.start = function () {
             this.playAnimation();
             this.player._canMove = true;
+            this.player._canTransition = true;
             this.player._canJump = true;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
+            this.player._wallRanAlready = false;
             console.log("entering idle state");
         };
         this._idleAnimation.stop = function () {
@@ -260,9 +270,11 @@ export class Player implements IDisposable {
         this._idleGunAnimation.start = function () {
             this.playAnimation();
             this.player._canMove = true;
+            this.player._canTransition = true;
             this.player._canJump = true;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
+            this.player._wallRanAlready = false;
             console.log("entering idle-gun state");
         };
         this._idleGunAnimation.stop = function () {
@@ -280,6 +292,7 @@ export class Player implements IDisposable {
         this._switchGunAnimation.start = function () {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canJump = false;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
@@ -309,9 +322,11 @@ export class Player implements IDisposable {
         this._switchGunReverseAnimation.start = function () {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canJump = false;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
+            this.player._wallRanAlready = false;
             console.log("entering switch-gun state");
         };
         this._switchGunReverseAnimation.doesMovement = true;
@@ -337,9 +352,11 @@ export class Player implements IDisposable {
         this._runAnimation.start = function () {
             this.playAnimation();
             this.player._canMove = true;
+            this.player._canTransition = true;
             this.player._canJump = true;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
+            this.player._wallRanAlready = false;
             console.log("entering run state");
         };
         this._runAnimation.update = () => {
@@ -363,9 +380,11 @@ export class Player implements IDisposable {
         this._runGunAnimation.start = function () {
             this.playAnimation();
             this.player._canMove = true;
+            this.player._canTransition = true;
             this.player._canJump = true;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
+            this.player._wallRanAlready = false;
             console.log("entering run-gun state");
         };
         this._runGunAnimation.update = () => {
@@ -389,13 +408,17 @@ export class Player implements IDisposable {
         this._jumpAnimation.start = function () {
             this.playAnimation();
             this.player._canMove = true;
+            this.player._canTransition = true;
             this.player._canJump = false;
             this.player._canBeHit = true;
             this.player._canWallRun = true;
-            this.player._jumpSpeedCurrent = this.player._jumpSpeed;
-            // if player is crouching, do a high jump
-            if (this.player._moveInput.y > 0){
-                this.player._jumpSpeedCurrent *= this.player._hiJumpModifier;
+            if (this.player._jumpSpeedCurrent <= 0){
+                this.player._jumpSpeedCurrent = this.player._jumpSpeed;
+
+                // if player is crouching, do a high jump
+                if (this.player._moveInput.y > 0){
+                    this.player._jumpSpeedCurrent *= this.player._hiJumpModifier;
+                }
             }
             console.log("entering jump state");
         };
@@ -404,15 +427,13 @@ export class Player implements IDisposable {
                 console.log("engine.getDeltaTime():" + this._deltaTime);
                 console.log ("this._jumpSpeedCurrent : " + this._jumpSpeedCurrent);
             }
-            this._jumpSpeedCurrent -= this._deltaTime * this._jumpSpeedSlowdownRate;
-
             /* Allow the player to stop jumping when jump is released */
             if (!this._jumpInput){
                 this._jumpSpeedCurrent = 0;
             }
         }
         this._jumpAnimation.stop = function () {
-            this.player._jumpSpeedCurrent = 0;
+            //this.player._jumpSpeedCurrent = 0;
             console.log("leaving jump state");
         }
 
@@ -427,21 +448,29 @@ export class Player implements IDisposable {
         this._jumpGunAnimation.start = function () {
             this.playAnimation();
             this.player._canMove = true;
+            this.player._canTransition = true;
             this.player._canJump = false;
             this.player._canBeHit = true;
             this.player._canWallRun = true;
-            this.player._jumpSpeedCurrent = this.player._jumpSpeed;
+            if (this.player._jumpSpeedCurrent <= 0){
+                this.player._jumpSpeedCurrent = this.player._jumpSpeed;
+
+                // if player is crouching, do a high jump
+                if (this.player._moveInput.y > 0){
+                    this.player._jumpSpeedCurrent *= this.player._hiJumpModifier;
+                }
+            }
+
             console.log("entering jump-gun state");
         };
         this._jumpGunAnimation.update = () => {
-            this._jumpSpeedCurrent -= this._deltaTime * this._jumpSpeedSlowdownRate;
             /* Allow the player to stop jumping when jump is released */
             if (!this._jumpInput){
                 this._jumpSpeedCurrent = 0;
             }
         }
         this._jumpGunAnimation.stop = function () {
-            this.player._jumpSpeedCurrent = 0;
+            //this.player._jumpSpeedCurrent = 0;
             console.log("leaving jump-gun state");
         }
 
@@ -455,7 +484,9 @@ export class Player implements IDisposable {
         this._fallAnimation.loop = false;
         this._fallAnimation.start = function () {
             this.playAnimation();
+            this.player._jumpSpeedCurrent = 0;
             this.player._canMove = true;
+            this.player._canTransition = true;
             this.player._canJump = false;
             this.player._canBeHit = true;
             this.player._canWallRun = true;
@@ -477,6 +508,7 @@ export class Player implements IDisposable {
         this._fallGunAnimation.start = function () {
             this.playAnimation();
             this.player._canMove = true;
+            this.player._canTransition = true;
             this.player._canJump = false;
             this.player._canBeHit = true;
             this.player._canWallRun = true;
@@ -496,7 +528,9 @@ export class Player implements IDisposable {
         this._dashAnimation.loop = false;
         this._dashAnimation.start = function () {
             this.playAnimation();
+            this.player._jumpSpeedCurrent = 0;
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = false;
             this.player._canWallRun = false;
             this.player._jumpTimerElapsed = 0;
@@ -549,6 +583,7 @@ export class Player implements IDisposable {
         this._dashGunAnimation.start = function () {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = false;
             this.player._canWallRun = false;
             this.player._jumpTimerElapsed = 0;
@@ -602,6 +637,7 @@ export class Player implements IDisposable {
         {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
             console.log("entering lightAttack2 state");
@@ -616,6 +652,7 @@ export class Player implements IDisposable {
                 this._changeAnimationState(this._idleAnimation);
             }
         }
+        this._light1Attack.doesMovement = false;
         this._light1Attack.stop = function () {
             console.log("leaving lightAttack1 state");
         }
@@ -641,6 +678,7 @@ export class Player implements IDisposable {
         {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
             console.log("entering lightAttack2 state");
@@ -658,6 +696,7 @@ export class Player implements IDisposable {
         this._light2Attack.stop = function () {
             console.log("leaving lightAttack2 state");
         }
+        this._light2Attack.doesMovement = false;
         this._light2Attack.hitCastOffsets = [new Vector3(0, 0.53, 0)];
         this._light2Attack.hitCastVectors = [new Vector3(0.64, 0, 0)];
         this._light2Attack.hitstun = 0.1;
@@ -680,6 +719,7 @@ export class Player implements IDisposable {
         {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
             console.log("entering lightRapidJab state");
@@ -696,11 +736,12 @@ export class Player implements IDisposable {
         this._lightRapidJabAttack.stop = function () {
             console.log("leaving lightRapidJab state");
         }
+        this._lightRapidJabAttack.doesMovement = false;
         this._lightRapidJabAttack.hitCastOffsets = [new Vector3(0, 0.53, 0), new Vector3(0, 0.53, 0), new Vector3(0, 0.53, 0)];
         this._lightRapidJabAttack.hitCastVectors = [new Vector3(0.7, 0, 0), new Vector3(0.49, 0.49, 0), new Vector3(0.49, -0.49, 0)];
-        this._lightRapidJabAttack.hitstun = 0.8;
+        this._lightRapidJabAttack.hitstun = 0.3;
         this._lightRapidJabAttack.launchDirection = new Vector3(1, 0, 0);
-        this._lightRapidJabAttack.damage = 5;
+        this._lightRapidJabAttack.damage = 2;
         this._lightRapidJabAttack.startupFrame = 87;
         this._lightRapidJabAttack.activeFrame = 87;
         this._lightRapidJabAttack.recoveryFrame = 92;
@@ -718,16 +759,19 @@ export class Player implements IDisposable {
         {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
             console.log("entering lightFinisher state");
+            this.player._lightFinisherAttackVelocity.rotateByQuaternionToRef(this.player._transform.rotationQuaternion, this.player._lightFinisherAttackVelocityCurrent);
+            this.player._velocity.copyFrom(this.player._lightFinisherAttackVelocityCurrent);
         }
         this._lightFinisherAttack.update = () => {
         }
         this._lightFinisherAttack.onAnimationEnd = () => {
             this._changeAnimationState(this._idleAnimation);
         }
-        this._lightFinisherAttack.doesMovement = true;
+        this._lightFinisherAttack.doesMovement = false;
         this._lightFinisherAttack.doMovement = () => {
             /* move the player forward, slowing down over time */
             //todo
@@ -735,14 +779,14 @@ export class Player implements IDisposable {
         this._lightFinisherAttack.stop = function () {
             console.log("leaving lightFinisher state");
         }
-        this._lightFinisherAttack.hitCastOffsets = [new Vector3(0, 0.53, 0)];
+        this._lightFinisherAttack.hitCastOffsets = [new Vector3(-0.2, 0.53, 0)];
         this._lightFinisherAttack.hitCastVectors = [new Vector3(0.64, 0, 0)];
         this._lightFinisherAttack.hitstun = 0.3;
         this._lightFinisherAttack.launchDirection = new Vector3(10, 5, 0);
         this._lightFinisherAttack.damage = 15;
         this._lightFinisherAttack.startupFrame = 93;
         this._lightFinisherAttack.activeFrame = 95;
-        this._lightFinisherAttack.recoveryFrame = 101;
+        this._lightFinisherAttack.recoveryFrame = 103;
 
         /* */
 
@@ -757,6 +801,7 @@ export class Player implements IDisposable {
         {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
             console.log("entering heavyAttack1 state");
@@ -769,6 +814,7 @@ export class Player implements IDisposable {
         this._heavy1Attack.stop = function () {
             console.log("leaving heavyAttack1 state");
         }
+        this._heavy1Attack.doesMovement = false;
         this._heavy1Attack.hitCastOffsets = [new Vector3(0, 0.4, 0)];
         this._heavy1Attack.hitCastVectors = [new Vector3(0.82, 0, 0)];
         this._heavy1Attack.hitstun = 0.5;
@@ -791,6 +837,7 @@ export class Player implements IDisposable {
         {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
             console.log("entering heavyLauncher state");
@@ -804,6 +851,7 @@ export class Player implements IDisposable {
         this._heavyLauncherAttack.stop = function () {
             console.log("leaving heavyLauncher state");
         }
+        this._heavyLauncherAttack.doesMovement = false;
         this._heavyLauncherAttack.hitCastOffsets = [new Vector3(0, 0.2, 0)];
         this._heavyLauncherAttack.hitCastVectors = [new Vector3(0.64, 0.72, 0)];
         this._heavyLauncherAttack.hitstun = 0.25;
@@ -825,12 +873,16 @@ export class Player implements IDisposable {
         this._jumpKickAttack.start = function ()
         {
             this.playAnimation();
-            this.player._canMove = false;
+            this.player._canMove = true;
+            this.player._canTransition = false;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
             console.log("entering jumpKickAttack state");
         }
         this._jumpKickAttack.update = () => {
+            if (this._grounded){
+                this._changeAnimationState(this._idleAnimation);
+            }
         }
         this._jumpKickAttack.onAnimationEnd = () => {
             this._changeAnimationState(this._fallAnimation);
@@ -838,6 +890,8 @@ export class Player implements IDisposable {
         this._jumpKickAttack.stop = function () {
             console.log("leaving jumpKickAttack state");
         }
+        this._jumpKickAttack.doesMovement = false;
+        this._jumpKickAttack.doMovement = this.airAttackDoMovement;
         this._jumpKickAttack.hitCastOffsets = [new Vector3(0, 0.53, 0)];
         this._jumpKickAttack.hitCastVectors = [new Vector3(0.70, 0, 0)];
         this._jumpKickAttack.hitstun = 0.3;
@@ -860,11 +914,16 @@ export class Player implements IDisposable {
         {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
+            this.player._jumpDiveKickAttackVelocity.rotateByQuaternionToRef(this.player._transform.rotationQuaternion, this.player._jumpDiveKickAttackVelocityCurrent);
             console.log("entering jumpDiveKickAttack state");
         }
         this._jumpDiveKickAttack.update = () => {
+            if (this._grounded){
+                this._changeAnimationState(this._idleAnimation);
+            }
         }
         this._jumpDiveKickAttack.onAnimationEnd = () => {
             this._changeAnimationState(this._fallAnimation);
@@ -875,7 +934,7 @@ export class Player implements IDisposable {
         this._jumpDiveKickAttack.doesMovement = true;
         this._jumpDiveKickAttack.doMovement = () => {
             /* move the player diagonally down/forward */
-            //todo
+            this._transform.position.addInPlace(this._jumpDiveKickAttackVelocityCurrent.scale(this._deltaTime));
         }
         this._jumpDiveKickAttack.hitCastOffsets = [new Vector3(0, 0.5, 0)];
         this._jumpDiveKickAttack.hitCastVectors = [new Vector3(0.5, -0.5, 0)];
@@ -899,6 +958,7 @@ export class Player implements IDisposable {
         {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
             console.log("entering shootGunAttack state");
@@ -915,6 +975,7 @@ export class Player implements IDisposable {
         this._shootGunAttack.stop = function () {
             console.log("leaving shootGunAttack state");
         }
+        this._shootGunAttack.doesMovement = false;
         this._shootGunAttack.hitCastOffsets = [new Vector3(0, 0.53, 0)];
         this._shootGunAttack.hitCastVectors = [new Vector3(100, 0, 0)];
         this._shootGunAttack.hitstun = 0.3;
@@ -937,6 +998,7 @@ export class Player implements IDisposable {
         {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
             console.log("entering shootGun+45Attack state");
@@ -953,6 +1015,7 @@ export class Player implements IDisposable {
         this._shootGunPos45Attack.stop = function () {
             console.log("leaving shootGun+45Attack state");
         }
+        this._shootGunPos45Attack.doesMovement = false;
         this._shootGunPos45Attack.hitCastOffsets = [new Vector3(0, 0.53, 0)];
         this._shootGunPos45Attack.hitCastVectors = [new Vector3(70.7, 70.7, 0)];
         this._shootGunPos45Attack.hitstun = 0.3;
@@ -974,13 +1037,17 @@ export class Player implements IDisposable {
         this._jumpShootGunAttack.start = function ()
         {
             this.playAnimation();
-            this.player._canMove = false;
+            this.player._canMove = true;
+            this.player._canTransition = false;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
             console.log("entering jumpShootGunAttack state");
         }
         this._jumpShootGunAttack.update = () => {
             /* if current frame is active frame, make bullet projectile particle */
+            if (this._grounded){
+                this._changeAnimationState(this._idleAnimation);
+            }
         }
         this._jumpShootGunAttack.onAnimationEnd = () => {
             this._changeAnimationState(this._fallAnimation);
@@ -988,6 +1055,8 @@ export class Player implements IDisposable {
         this._jumpShootGunAttack.stop = function () {
             console.log("leaving jumpShootGunAttack state");
         }
+        this._jumpShootGunAttack.doesMovement = false;
+        this._jumpShootGunAttack.doMovement = this.airAttackDoMovement;
         this._jumpShootGunAttack.hitCastOffsets = [new Vector3(0, 0.53, 0)];
         this._jumpShootGunAttack.hitCastVectors = [new Vector3(100, 0, 0)];
         this._jumpShootGunAttack.hitstun = 0.3;
@@ -1009,13 +1078,17 @@ export class Player implements IDisposable {
         this._jumpShootGunPos45Attack.start = function ()
         {
             this.playAnimation();
-            this.player._canMove = false;
+            this.player._canMove = true;
+            this.player._canTransition = false;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
             console.log("entering jumpShootGun+45Attack state");
         }
         this._jumpShootGunPos45Attack.update = () => {
             /* if current frame is active frame, make bullet projectile particle */
+            if (this._grounded){
+                this._changeAnimationState(this._idleAnimation);
+            }
         }
         this._jumpShootGunPos45Attack.onAnimationEnd = () => {
             this._changeAnimationState(this._fallAnimation);
@@ -1023,6 +1096,8 @@ export class Player implements IDisposable {
         this._jumpShootGunPos45Attack.stop = function () {
             console.log("leaving jumpShootGun+45Attack state");
         }
+        this._jumpShootGunPos45Attack.doesMovement = false;
+        this._jumpShootGunPos45Attack.doMovement = this.airAttackDoMovement;
         this._jumpShootGunPos45Attack.hitCastOffsets = [new Vector3(0, 0.53, 0)];
         this._jumpShootGunPos45Attack.hitCastVectors = [new Vector3(70.7, 70.7, 0)];
         this._jumpShootGunPos45Attack.hitstun = 0.3;
@@ -1044,13 +1119,17 @@ export class Player implements IDisposable {
         this._jumpShootGunNeg45Attack.start = function ()
         {
             this.playAnimation();
-            this.player._canMove = false;
+            this.player._canMove = true;
+            this.player._canTransition = false;
             this.player._canBeHit = true;
             this.player._canWallRun = false;
             console.log("entering jumpShootGun-45Attack state");
         }
         this._jumpShootGunNeg45Attack.update = () => {
             /* if current frame is active frame, make bullet projectile particle */
+            if (this._grounded){
+                this._changeAnimationState(this._idleAnimation);
+            }
         }
         this._jumpShootGunNeg45Attack.onAnimationEnd = () => {
             this._changeAnimationState(this._fallAnimation);
@@ -1058,6 +1137,8 @@ export class Player implements IDisposable {
         this._jumpShootGunNeg45Attack.stop = function () {
             console.log("leaving jumpShootGun-45Attack state");
         }
+        this._jumpShootGunNeg45Attack.doesMovement = false;
+        this._jumpShootGunNeg45Attack.doMovement = this.airAttackDoMovement;
         this._jumpShootGunNeg45Attack.hitCastOffsets = [new Vector3(0, 0.6, 0)];
         this._jumpShootGunNeg45Attack.hitCastVectors = [new Vector3(70.7, -70.7, 0)];
         this._jumpShootGunNeg45Attack.hitstun = 0.3;
@@ -1079,7 +1160,9 @@ export class Player implements IDisposable {
         this._wallRunAnimation.start = function ()
         {
             this.playAnimation();
+            this.player._wallRanAlready = true;
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = true;
             this.player._canWallRun = true;
             this.player._wallRunSpeedCurrent = this.player._wallRunSpeed;
@@ -1116,6 +1199,7 @@ export class Player implements IDisposable {
         {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = true;
             this.player._canWallRun = true;
             this.player._wallJumpSpeedCurrent.copyFrom(this.player._wallJumpSpeed);
@@ -1153,6 +1237,7 @@ export class Player implements IDisposable {
         {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = false;
             this.player._canWallRun = false;
             console.log("entering Hit state");
@@ -1179,6 +1264,7 @@ export class Player implements IDisposable {
         {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = false;
             this.player._canWallRun = false;
             console.log("entering Hit state");
@@ -1205,6 +1291,7 @@ export class Player implements IDisposable {
         {
             this.playAnimation();
             this.player._canMove = false;
+            this.player._canTransition = false;
             this.player._canBeHit = false;
             this.player._canWallRun = false;
             console.log("entering Die state");
@@ -1419,26 +1506,36 @@ export class Player implements IDisposable {
         if (this._currentAnimation && this._currentAnimation.doesMovement){
             this._currentAnimation.doMovement();
         } else {
+            /* set the movement vector using the player locomotion */
+            this._velocity.copyFromFloats(this._velocity.x * (1 - (this._grounded ? this._groundFriction.x : this._airFriction.x)),
+                                            this._velocity.y * (1 - (this._grounded ? this._groundFriction.y : this._airFriction.y)),
+                                            this._velocity.z * (1 - (this._grounded ? this._groundFriction.z : this._airFriction.z)));
+            if (!this._grounded && this._jumpSpeedCurrent <= 0){
+                this.doGravityMovement(this._velocity);
+            }else if (this._grounded){
+                this._velocity.y = 0;
+            }
             if (this._canMove) {
-                /* set the movement vector using the player locomotion */
-                this._velocity.copyFromFloats(this._velocity.x * (1 - (this._grounded ? this._groundFriction.x : this._airFriction.x)),
-                                              this._velocity.y * (1 - (this._grounded ? this._groundFriction.y : this._airFriction.y)),
-                                              this._velocity.z * (1 - (this._grounded ? this._groundFriction.z : this._airFriction.z)));
-                if (!this._grounded && this._jumpSpeedCurrent <= 0){
-                    this.doGravityMovement(this._velocity);
-                }else if (this._grounded){
-                    this._velocity.y = 0;
-                }
                 this.doHorizontalMovement(this._velocity);
-                if (this._jumpSpeedCurrent > 0) {
-                    this.doJumpMovement(this._velocity);
-                }
+            }
+            if (this._jumpSpeedCurrent > 0) {
+                this.doJumpMovement(this._velocity);
             }
             let posDelta = this._velocity.scale(this._deltaTime);
             this._transform.position.addInPlace(posDelta);
         }
         this.applyBounds();
     }
+
+    private airAttackDoMovement = () => {
+        this._velocity.copyFromFloats(this._velocity.x * this._groundFriction.x,
+                                      this._velocity.y * this._groundFriction.y,
+                                      this._velocity.z * this._groundFriction.z);
+        if ( this._jumpSpeedCurrent > 0){
+            this.doJumpMovement(this._velocity);
+        }
+        this._transform.position.addInPlace(this._velocity.scale(this._deltaTime));
+    };
 
     private applyBounds(): void{
         this._transform.position.copyFromFloats(Math.min(this._transform.position.x, this._game.playerMaxPosition.x - this._wallRaycastOffset.x),
@@ -1488,6 +1585,9 @@ export class Player implements IDisposable {
         if (this._hitTimer > 0){
             this._hitTimer -= this._deltaTime;
         }
+        if (this._jumpSpeedCurrent > 0){
+            this._jumpSpeedCurrent -= this._deltaTime * this._jumpSpeedSlowdownRate;
+        }
     }
 
     private _doStateTransition(): void {
@@ -1504,9 +1604,10 @@ export class Player implements IDisposable {
                 this._changeAnimationState(this._hitAnimation)
             }
             return;
-        } else if (this._canMove) {
-            if (((this._facingWall && this._canWallRun) && this._isPressingForward())
-            || this._wallJumpTimerElapsed > 0){
+        } else if (this._canTransition) {
+            if ((((this._facingWall && this._canWallRun) && this._isPressingForward())
+                    || this._wallJumpTimerElapsed > 0)
+                && !this._wallRanAlready){
                 this._changeAnimationState(this._wallRunAnimation);
             } else if (this._lightAttackInput) {
                 if (this._gunDrawn) {
