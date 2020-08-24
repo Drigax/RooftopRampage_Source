@@ -3,20 +3,21 @@ import { SpriteManager } from "@babylonjs/core/Sprites"
 import { SceneLoader } from "@babylonjs/core/Loading"
 import { DeviceSourceManager, DeviceType } from "@babylonjs/core/DeviceInput";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
-import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { Engine } from "@babylonjs/core/Engines/engine";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { Color4 } from "@babylonjs/core/Maths/math.color";
+import { Color3, Color4 } from "@babylonjs/core/Maths/math.color";
 import { Scene } from "@babylonjs/core/scene";
-import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight"
 import "@babylonjs/loaders/glTF"
 import "@babylonjs/inspector";
 import { Player, HitEvent } from "./player";
+import { GameUI } from "./ui";
+import { CubeTexture } from "@babylonjs/core/Materials/Textures/cubeTexture";
 
 export class Game {
     canvas: HTMLCanvasElement;
     engine: Engine;
     gameScene: Scene;
+    gameUI: GameUI;
     players: Player[];
     devices: any[];
     _maxPlayers: number = 2;
@@ -24,9 +25,14 @@ export class Game {
     /* camera related variables */
     mainCamera: TargetCamera;
     _cameraTarget: Vector3 = new Vector3(0, 2, 0);
-    _cameraPosition: Vector3 = new Vector3(0, 3, -10);
-    _cameraOffset: Vector3 = new Vector3(0, 0, -2.5);
+    _cameraPosition: Vector3 = new Vector3(0, 42.5, -10);
+    _cameraOffset: Vector3 = new Vector3(0, 0, 0);
     _aspectRatio: number = 1.77777776; /* 16:9 aspect ratio */
+    _cameraFov: number = 62.63 * Math.PI/180;
+
+    /* lighting */
+    _environmentTexture: CubeTexture;
+    _backgroundColor: string = "#47a5fdff"
 
     /* global limits for players */
     playerMaxPosition: Vector3 = new Vector3(Infinity, Infinity, Infinity);
@@ -67,6 +73,7 @@ export class Game {
         this.deviceSourceManager = new DeviceSourceManager(engine);
         this.gameScene = gameScene;
         this.initializeCamera();
+        this.gameUI = new GameUI(this);
 
         this.deviceSourceManager.onAfterDeviceConnectedObservable.add((device) => {
             if (device.deviceType != DeviceType.Mouse) {
@@ -97,7 +104,6 @@ export class Game {
                 }
             });
         }
-        MeshBuilder.CreateBox("helper", {size: 0.1}, gameScene);
 
         /* setup promises to load assets asynchronously */
         let promises: Promise<any>[] = [];
@@ -121,7 +127,8 @@ export class Game {
 
         /* once we're done loading in all our dependencies, initialize the game then hide the loading UI */
         Promise.all(promises).then(() => {
-            this.restart();
+            //this.gameUI.showMainMenu();
+            this.gameUI.hideGui();
             engine.hideLoadingUI();
         });
     }
@@ -144,6 +151,7 @@ export class Game {
 
     private initializeCamera() : void {
         this.mainCamera = new FreeCamera("mainCamera", this._cameraPosition, this.gameScene);
+        this.mainCamera.fov = this._cameraFov;
         this.updateCamera();
     }
 
@@ -155,11 +163,7 @@ export class Game {
     private initializeBackground() : Promise<any> {
         this._groundImpostors = [];
         this._wallImpostors = [];
-        this.gameScene.clearColor = new Color4(0.2, 0.2, 0.3, 1.0);
         return SceneLoader.ImportMeshAsync("","./Meshes/", "rooftop.glb", this.gameScene).then((result) => {
-            let environmentLight = new HemisphericLight("sunLight", Vector3.Up(), this.gameScene);
-            /* dim the light a bit */
-            environmentLight.intensity = 0.7;
             this.gameScene.getNodes().forEach((mesh) => {
                 if (mesh.name == "GroundImpostor") {
                     this._groundImpostors.push(mesh as AbstractMesh);
@@ -186,6 +190,12 @@ export class Game {
                 }
                 console.log(mesh.name);
             });
+            this.gameScene.lights.forEach((light) => {
+                light.intensity /= 10; /* Currently, blender exported intensity is 10x expected value. Possible bug? */
+            });
+            this._environmentTexture = new CubeTexture("./Hdr/canary_wharf_1k.env", this.gameScene);
+            this.gameScene.environmentTexture = this._environmentTexture;
+            this.gameScene.clearColor = Color4.FromHexString(this._backgroundColor);
 
             this.updateCamera();
 
