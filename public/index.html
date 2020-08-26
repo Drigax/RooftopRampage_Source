@@ -18,9 +18,29 @@
             src: url("./Fonts/pressstart2p/PressStart2P.ttf");
         }
     </style>
-    <body>
+    <body scroll="no" >
         <!-- This is the main canvas that the game will be rendering to -->
         <canvas id="renderCanvas" style="background-color: blue; width: 100%; height: 100%;"></canvas>
+        <p>Instructions: Connect a gamepad and press any button or press any key to start! Add a gamepad to play with a friend!</p>
+        <p>The final showdown on the rooftop begins! Defeat your enemy and reign supreme!</p>
+        <p>Controls:</p>
+        <p> </p>
+        <p>W/A/S/D or DPad or Left Analog stick to move</p>
+        <p>Space or Gamepad Bottom button to jump</p>
+        <p>Shift or Gamepad right shoulder button (R1, RB) to dash</p>
+        <p>J or Gamepad Left Button (Square, X) for Light Attack</p>
+        <p>K or Gamepad Top Button (Triangle, Y) for Heavy Attack</p>
+        <p>Heavy Attack + Up for Heavy Launcher kick</p>
+        <p>L or Gamepad Right Button (Circle, B) to switch to gun</p>
+        <p>Jump + Light Attack for jumping kick</p>
+        <p>Jump + Heavy Attack for diving kick</p>
+        <p> </p>
+        <p>With Gun Equipped:</p>
+        <p>Attack to shoot</p>
+        <p>Up + Attack to shoot up</p>
+        <p>Jump + Down + Attack to shoot down</p>
+        <p>Switch Gun to switch back to hand-to-hand</p>
+        <script>document.addEventListener('keydown', (evt) => { if (evt.keyCode == 32) evt.preventDefault() /*capture space bar press to no longer scroll.*/ });</script>
         <!-- Webpack adds a reference to the compiled project bundle here -->
     </body>
 </html>
