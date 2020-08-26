@@ -1629,7 +1629,7 @@ export class Player implements IDisposable {
                         this._changeAnimationState(this._jumpDiveKickAttack);
                     }
                 }
-            } else if (this._switchGunInput) {
+            } else if (this._switchGunInput && this._grounded) {
                 if (this._gunDrawn) {
                     this._changeAnimationState(this._switchGunReverseAnimation);
                 } else {
