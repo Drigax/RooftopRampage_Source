@@ -2,9 +2,11 @@ const path = require("path");
 const fs = require('fs');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 const appDirectory = fs.realpathSync(process.cwd());
 
 module.exports = {
+    //context: __dirname,
     entry: path.resolve(appDirectory, "src/game.ts"),
     output: {
         filename: 'js/rooftopRampage.js'
@@ -35,7 +37,12 @@ module.exports = {
             inject: true,
             template: path.resolve(appDirectory, "public/index.html")
         }),
-        new CleanWebpackPlugin()
+        new CleanWebpackPlugin(),
+        new CopyWebpackPlugin({
+            patterns: [
+                { from: 'public' }
+            ]
+        })
     ],
     mode: "development",
     optimization: {

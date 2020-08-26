@@ -4,7 +4,8 @@
   "description": "A networked simple fighting game that uses the Babylon.js and socket.io frameworks",
   "main": "game.ts",
   "scripts": {
-    "build": "webpack",
+    "build": "webpack --mode=production",
+    "profile": "webpack --profile --json > webpack-stats.json",
     "start": "webpack-dev-server --port 3000",
     "start:dev": "webpack-dev-server --watch --mode=development --inline --port 3000"
   },
@@ -17,6 +18,7 @@
     "@babylonjs/inspector": "^4.2.0-alpha.25",
     "@babylonjs/loaders": "^4.2.0-alpha.25",
     "clean-webpack-plugin": "^3.0.0",
+    "copy-webpack-plugin": "^6.0.3",
     "html-loader": "^1.1.0",
     "html-webpack-plugin": "^4.3.0",
     "ts-loader": "^7.0.5",

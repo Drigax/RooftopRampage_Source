@@ -1,15 +1,18 @@
+import { Sound } from "@babylonjs/core/Audio"
 import { FreeCamera, TargetCamera } from "@babylonjs/core/Cameras"
 import { SpriteManager } from "@babylonjs/core/Sprites"
+import { Texture } from "@babylonjs/core/Materials/Textures"
 import { SceneLoader } from "@babylonjs/core/Loading"
 import { DeviceSourceManager, DeviceType } from "@babylonjs/core/DeviceInput";
+import { InputManager } from "@babylonjs/core/Inputs/scene.inputManager"
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Engine } from "@babylonjs/core/Engines/engine";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Color3, Color4 } from "@babylonjs/core/Maths/math.color";
 import { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/loaders/glTF"
-import "@babylonjs/inspector";
 import { Player, HitEvent } from "./player";
+import { CpuPlayer } from "./cpuPlayer";
 import { GameUI } from "./ui";
 import { CubeTexture } from "@babylonjs/core/Materials/Textures/cubeTexture";
 
@@ -20,7 +23,13 @@ export class Game {
     gameUI: GameUI;
     players: Player[];
     devices: any[];
+    _touchDeviceConnected = false;
     _maxPlayers: number = 2;
+    _currentMaxPlayers: number;
+    _inputManager: InputManager;
+
+    /* game state related variables */
+    inMenu: boolean;
 
     /* camera related variables */
     mainCamera: TargetCamera;
@@ -32,6 +41,8 @@ export class Game {
 
     /* lighting */
     _environmentTexture: CubeTexture;
+    _environmentTextureLevel: number = 0.5;
+    _lightIntensity: number = 30;
     _backgroundColor: string = "#47a5fdff"
 
     /* global limits for players */
@@ -55,6 +66,12 @@ export class Game {
     /* Hit resolution variables */
     _pendingHits: HitEvent[] = [];
 
+    /* Music */
+    _mainMenuMusic: Sound;
+    _battleMusic: Sound;
+
+    _inspectorLoaded: boolean;
+
     /* layering related variables */
     static DEFAULT_LAYER    = 0x0CFFFFFF;
     static HURTBOX_LAYER    = 0x10000000;
@@ -66,9 +83,11 @@ export class Game {
         this.players = [];
         this.devices = [];
         this.canvas = canvas;
-        this.resizeCanvas(this.canvas)
+        this.resizeCanvas(this.canvas);
         let engine = new Engine(this.canvas);
         this.engine = engine;
+        engine.displayLoadingUI();
+
         let gameScene = new Scene(engine);
         this.deviceSourceManager = new DeviceSourceManager(engine);
         this.gameScene = gameScene;
@@ -76,10 +95,21 @@ export class Game {
         this.gameUI = new GameUI(this);
 
         this.deviceSourceManager.onAfterDeviceConnectedObservable.add((device) => {
-            if (device.deviceType != DeviceType.Mouse) {
+            //if (device.deviceType == DeviceType.Mouse){
+            //    this.gameUI.createTouchJoystick();
+
+            if (device.deviceType != DeviceType.Mouse ) {
+                if (device.deviceType == DeviceType.Touch ){
+                    if (this._touchDeviceConnected){
+                        this.gameUI.createTouchJoystick();
+                        return;
+                    }
+                    this._touchDeviceConnected = true;
+                }
                 this.devices.push(device);
                 if (this.players.length < this._maxPlayers) {
                     this.players.push(new Player(this, this.gameScene, this.players.length, this.deviceSourceManager.getDeviceSource(device.deviceType, device.deviceSlot)));
+                    this.onDeviceConnected();
                 }
             }
         });
@@ -87,7 +117,6 @@ export class Game {
         console.log("Game created!");
 
         /* show the loading screen so the user knows we're doing something */
-        engine.displayLoadingUI();
 
         if(this._debuggingEnabled){
             this.gameScene.onBeforeRenderObservable.add(() => {
@@ -95,10 +124,18 @@ export class Game {
                 if (keyboardDevice){
                     /* toggle inspector on Ctrl+Alt+I */
                     if (keyboardDevice.getInput(17) && keyboardDevice.getInput(18) && keyboardDevice.getInput(73)) {
+                        /*
+                        if (!this._inspectorLoaded){
+                            var script = document.createElement('script');
+                            script.setAttribute("src", "https://preview.babylonjs.com/inspector/babylon.inspector.bundle.js");
+                            this._inspectorLoaded = true;
+                        } else {
+                        */
                         if (this.gameScene.debugLayer.isVisible()){
                             this.gameScene.debugLayer.hide();
                         } else {
                             this.gameScene.debugLayer.show();
+                            //}
                         }
                     }
                 }
@@ -107,6 +144,7 @@ export class Game {
 
         /* setup promises to load assets asynchronously */
         let promises: Promise<any>[] = [];
+        promises.push(this.loadSounds());
         promises.push(this.initializeBackground());
         promises.push(this.loadCharacterAssets());
 
@@ -127,10 +165,23 @@ export class Game {
 
         /* once we're done loading in all our dependencies, initialize the game then hide the loading UI */
         Promise.all(promises).then(() => {
-            //this.gameUI.showMainMenu();
-            this.gameUI.hideGui();
-            engine.hideLoadingUI();
+            this.inMenu = true;
+            this.gameUI.showStartMenu();
+            this.gameUI.updatePlayerDevices(this.inMenu);
+
+            /* setup fullscreen game */
+            canvas.addEventListener('pointerDown', (event) => {
+                engine.enterFullscreen(false);
+            });
+
+            setInterval(() => {
+                engine.hideLoadingUI();
+            }, 500);
         });
+    }
+
+    private onDeviceConnected() : void {
+        this.gameUI.updatePlayerDevices(this.inMenu);
     }
 
     private resizeCanvas(canvas) : void {
@@ -158,6 +209,16 @@ export class Game {
     private updateCamera() : void {
         this.mainCamera.position = this._cameraPosition;
         this.mainCamera.setTarget(this._cameraTarget);
+    }
+
+    private loadSounds() : Promise<any> {
+        return Promise.resolve().then(() => {
+            this._mainMenuMusic = new Sound("KMelzi-StreetFighter", "./Sounds/KMelzi-StreetFighter.mp3", this.gameScene, null, {autoplay: true, loop: true, volume:0.7});
+            this._battleMusic = new Sound("NatsuFuji-HIDDEN", "./Sounds/NatsuFuji-HIDDEN.mp3", this.gameScene, null, {autoplay: false, loop: true, volume:0.7});
+            return Player.loadSounds(this.gameScene).then(() => {
+                return Promise.resolve();
+            });
+        });
     }
 
     private initializeBackground() : Promise<any> {
@@ -194,6 +255,7 @@ export class Game {
                 light.intensity /= 10; /* Currently, blender exported intensity is 10x expected value. Possible bug? */
             });
             this._environmentTexture = new CubeTexture("./Hdr/canary_wharf_1k.env", this.gameScene);
+            this._environmentTexture.level = this._environmentTextureLevel;
             this.gameScene.environmentTexture = this._environmentTexture;
             this.gameScene.clearColor = Color4.FromHexString(this._backgroundColor);
 
@@ -212,8 +274,8 @@ export class Game {
     }
 
     private loadCharacterAssets() : Promise<any> {
-        Player.player1SpriteManager = new SpriteManager("Player1SpriteManager", "./Sprites/Fighter1.png", 1, {width: 32, height: 32}, this.gameScene );
-        Player.player2SpriteManager = new SpriteManager("Player2SpriteManager", "./Sprites/Fighter2.png", 1, {width: 32, height: 32}, this.gameScene );
+        Player.player1SpriteManager = new SpriteManager("Player1SpriteManager", "./Sprites/Fighter1.png", 1, {width: 32, height: 32}, this.gameScene, 0.01, Texture.NEAREST_SAMPLINGMODE );
+        Player.player2SpriteManager = new SpriteManager("Player2SpriteManager", "./Sprites/Fighter2.png", 1, {width: 32, height: 32}, this.gameScene, 0.01, Texture.NEAREST_SAMPLINGMODE );
         return Promise.resolve();
     }
 
@@ -224,10 +286,50 @@ export class Game {
         });
         this.players = [];
 
-        for (let i = 0; i < this.devices.length && i < this._maxPlayers; ++i){
+        for (let i = 0; i < this.devices.length && i < this._currentMaxPlayers; ++i){
             const device = this.devices[i];
-            this.players.push(new Player(this, this.gameScene, i, this.deviceSourceManager.getDeviceSource(device.deviceType, device.deviceSlot)));
+            let player = new Player(this, this.gameScene, i, this.deviceSourceManager.getDeviceSource(device.deviceType, device.deviceSlot), true);
+
+            this.players.push(player);
+
         }
+        for (let i = this.players.length; i < this._maxPlayers; ++i){
+            let cpuPlayer = new CpuPlayer(this, this.gameScene, i, null, true);
+            this.players.push(cpuPlayer);
+        }
+
+        this.players.forEach((player) => {
+            player.onHealthChanged.add((health) => {
+                this.gameUI.setPlayerHealthPercent(player.getIndex(), player.getHealth()/player.getMaxHealth())
+            });
+        });
+    }
+
+    public startOnePlayer(): void{
+        /* temporarily remove player 2 if connected. */
+        this._currentMaxPlayers = 1;
+        /* instantiate CPU player as player 2 */
+        this.startBattle();
+    }
+
+    public startTwoPlayer(): void{
+        this.startBattle();
+    }
+
+    private startBattle(): void{
+        this.restart();
+        this.inMenu = false;
+        this._mainMenuMusic.stop();
+        this.gameUI.showBattleUi();
+        this._battleMusic.play();
+    }
+
+    private endBattle(): void {
+        /* undo whatever temporary removal of player 2 we did */
+        this.inMenu = true;
+        this._battleMusic.stop();
+        this.gameUI.showMainMenu();
+        this._mainMenuMusic.play();
     }
 
     public reportHit(hit: HitEvent){
@@ -238,7 +340,7 @@ export class Game {
         let currentHit: HitEvent;
         while(this._pendingHits.length > 0){
             currentHit = this._pendingHits.shift();
-            currentHit.hurtPlayer.onHit(currentHit);
+            currentHit.hurtPlayer.applyHit(currentHit);
         }
     }
 
