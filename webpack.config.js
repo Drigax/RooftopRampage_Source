@@ -33,7 +33,7 @@ module.exports = {
         ]
     },
     plugins: [
-        //new CopyWebpackPlugin({
+        //new CopyWebpackPlugin({ //uncomment for for production build.
         //    patterns: [
         //        { from: 'public' }
         //    ]
