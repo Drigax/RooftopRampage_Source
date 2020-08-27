@@ -175,13 +175,17 @@ export class Game {
             this.gameUI.showStartMenu();
             this.gameUI.updatePlayerDevices(this.inMenu);
 
-            let enterFullscreen = (event) => {
-                console.log('entering fullscreen!');
+            let enterFullscreen = function(event) {
                 engine.enterFullscreen(false);
+                console.log('entering fullscreen!');
             }
             /* setup fullscreen game */
-            canvas.addEventListener('dblclick', enterFullscreen)
-            canvas.addEventListener('touchstart', enterFullscreen);
+            canvas.addEventListener('dblclick', enterFullscreen);
+            let isMobile = false;
+            /* mobile check */
+            if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+                canvas.onpointerup = enterFullscreen;
+            }
 
             setInterval(() => {
                 engine.hideLoadingUI();
@@ -329,7 +333,9 @@ export class Game {
         this.restart();
         this.inMenu = false;
         this._mainMenuMusic.stop();
+        this._mainMenuMusic.autoplay = false;
         this.gameUI.showBattleUi();
+        this._battleMusic.autoplay = true;
         this._battleMusic.play();
     }
 
@@ -337,7 +343,9 @@ export class Game {
         /* undo whatever temporary removal of player 2 we did */
         this.inMenu = true;
         this._battleMusic.stop();
+        this._battleMusic.autoplay = false;
         this.gameUI.showMainMenu();
+        this._mainMenuMusic.autoplay = true;
         this._mainMenuMusic.play();
     }
 
