@@ -52,8 +52,6 @@ export class CpuPlayer extends Player{
     }
 
     protected _updateInput(): void {
-        console.log("This is the CPU player's input update!");
-
         let randomBehaviorInput = Math.random();
         let randomAttackInput = Math.random();
         let randomSwitchGunInput = Math.random();
