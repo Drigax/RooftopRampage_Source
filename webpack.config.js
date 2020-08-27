@@ -33,16 +33,16 @@ module.exports = {
         ]
     },
     plugins: [
+        //new CopyWebpackPlugin({
+        //    patterns: [
+        //        { from: 'public' }
+        //    ]
+        //}),
         new HtmlWebpackPlugin({
             inject: true,
             template: path.resolve(appDirectory, "public/index.html")
         }),
         new CleanWebpackPlugin(),
-        new CopyWebpackPlugin({
-            patterns: [
-                { from: 'public' }
-            ]
-        })
     ],
     mode: "development",
     optimization: {

@@ -29,7 +29,7 @@ export class CpuPlayer extends Player{
     private lightVsHeavyAttackPercentage = 0.6;
     private enemy: Player;
     private enemyPositionDelay: Vector3[] = [];
-    private enemyPositionDelayFrames: number = 25;
+    private enemyPositionDelayFrames: number = 35;
 
     private enemyDistance: Vector3 = new Vector3();
     private meleeEngagementRange = 0.7;

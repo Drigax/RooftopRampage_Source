@@ -414,12 +414,23 @@ export class GameUI {
         this._touchJoystick = new TouchScreenGamepad(this._game.gameScene, this);
     }
 
+    public removeTouchJoystick(){
+        this._touchJoystick.controls.forEach((control) => {
+            control.dispose();
+        });
+        this._touchJoystick = null;
+    }
+
     public getGame(): Game {
         return this._game;
     }
 
     public getGuiOverlayTexture(): AdvancedDynamicTexture{
         return this._guiOverlayTexture;
+    }
+
+    get touchJoystick(): TouchScreenGamepad{
+        return this._touchJoystick;
     }
 }
 
@@ -441,8 +452,8 @@ class TouchScreenGamepad {
     private _joystickPuckIsDown: boolean;
 
     get moveInput(): Vector3 {
-        return this._moveInput.copyFromFloats((this.upInput? 1 : 0) + (this.downInput ? -1 : 0),
-                                              (this.leftInput? -1 : 0) + (this.rightInput ? 1 : 0),
+        return this._moveInput.copyFromFloats((this.leftInput? -1 : 0) + (this.rightInput ? 1 : 0),
+                                              (this.upInput? 1 : 0) + (this.downInput ? -1 : 0),
                                               0);
     }
 
@@ -458,7 +469,7 @@ class TouchScreenGamepad {
 
     constructor(scene: Scene, gameUI: GameUI){
         /* create virtual buttons */
-        this._upButton = Button.CreateImageWithCenterTextButton("VirtualJoystickJumpButton", "", "./Sprites/JumpButton.png");
+        this._upButton = Button.CreateImageWithCenterTextButton("VirtualJoystickUpButton", "", "./Sprites/UpButton.png");
         this._upButton.top = "30%";
         this._upButton.left = "-30%";
         this._upButton.width = "5.625%";
@@ -471,7 +482,7 @@ class TouchScreenGamepad {
             this.upInput = false;
         });
         /* create virtual buttons */
-        this._downButton = Button.CreateImageWithCenterTextButton("VirtualJoystickJumpButton", "", "./Sprites/JumpButton.png");
+        this._downButton = Button.CreateImageWithCenterTextButton("VirtualJoystickDownButton", "", "./Sprites/DownButton.png");
         this._downButton.top = "45%";
         this._downButton.left = "-30%";
         this._downButton.width = "5.625%";
@@ -484,11 +495,11 @@ class TouchScreenGamepad {
             this.downInput = false;
         });
         /* create virtual buttons */
-        this._leftButton = Button.CreateImageWithCenterTextButton("VirtualJoystickJumpButton", "", "./Sprites/JumpButton.png");
+        this._leftButton = Button.CreateImageWithCenterTextButton("VirtualJoystickLeftButton", "", "./Sprites/LeftButton.png");
         this._leftButton.top = "37.5%";
-        this._leftButton.left = "-40%";
-        this._leftButton.width = "5.625%";
-        this._leftButton.height = "10%";
+        this._leftButton.left = "-35%";
+        this._leftButton.width = "8.4375%";
+        this._leftButton.height = "15%";
         this._leftButton.color = "transparent";
         this._leftButton.onPointerDownObservable.add(() => {
             this.leftInput = true;
@@ -497,11 +508,11 @@ class TouchScreenGamepad {
             this.leftInput = false;
         });
         /* create virtual buttons */
-        this._rightButton = Button.CreateImageWithCenterTextButton("VirtualJoystickJumpButton", "", "./Sprites/JumpButton.png");
+        this._rightButton = Button.CreateImageWithCenterTextButton("VirtualJoystickRightButton", "", "./Sprites/RightButton.png");
         this._rightButton.top = "37.5%";
-        this._rightButton.left = "-20%";
-        this._rightButton.width = "5.625%";
-        this._rightButton.height = "10%";
+        this._rightButton.left = "-25%";
+        this._rightButton.width = "8.4375%";
+        this._rightButton.height = "15%";
         this._rightButton.color = "transparent";
         this._rightButton.onPointerDownObservable.add(() => {
             this.rightInput = true;
@@ -514,9 +525,9 @@ class TouchScreenGamepad {
         /* create virtual buttons */
         this._jumpButton = Button.CreateImageWithCenterTextButton("VirtualJoystickJumpButton", "", "./Sprites/JumpButton.png");
         this._jumpButton.top = "45%";
-        this._jumpButton.left = "10%";
-        this._jumpButton.width = "5.625%";
-        this._jumpButton.height = "10%";
+        this._jumpButton.left = "25%";
+        this._jumpButton.width = "8.4375%";
+        this._jumpButton.height = "15%";
         this._jumpButton.color = "transparent";
         this._jumpButton.onPointerDownObservable.add(() => {
             this.jumpInput = true;
@@ -527,9 +538,9 @@ class TouchScreenGamepad {
 
         this._lightAttackButton = Button.CreateImageWithCenterTextButton("VirtualJoystickLightAttackButton", "", "./Sprites/LightAttackButton.png");
         this._lightAttackButton.top = "30%";
-        this._lightAttackButton.left = "10%";
-        this._lightAttackButton.width = "5.625%";
-        this._lightAttackButton.height = "10%";
+        this._lightAttackButton.left = "25%";
+        this._lightAttackButton.width = "8.4375%";
+        this._lightAttackButton.height = "15%";
         this._lightAttackButton.color = "transparent";
         this._lightAttackButton.onPointerDownObservable.add(() => {
             this.lightAttackInput = true;
@@ -540,9 +551,9 @@ class TouchScreenGamepad {
 
         this._heavyAttackButton = Button.CreateImageWithCenterTextButton("VirtualJoystickHeavyAttackButton", "", "./Sprites/HeavyAttackButton.png");
         this._heavyAttackButton.top = "30%";
-        this._heavyAttackButton.left = "20%";
-        this._heavyAttackButton.width = "5.625%";
-        this._heavyAttackButton.height = "10%";
+        this._heavyAttackButton.left = "35%";
+        this._heavyAttackButton.width = "8.4375%";
+        this._heavyAttackButton.height = "15%";
         this._heavyAttackButton.color = "transparent";
         this._heavyAttackButton.onPointerDownObservable.add(() => {
             this.heavyAttackInput = true;
@@ -553,9 +564,9 @@ class TouchScreenGamepad {
 
         this._dashButton = Button.CreateImageWithCenterTextButton("VirtualJoystickDashButton", "", "./Sprites/DashButton.png");
         this._dashButton.top = "45%";
-        this._dashButton.left = "20%";
-        this._dashButton.width = "5.625%";
-        this._dashButton.height = "10%";
+        this._dashButton.left = "35%";
+        this._dashButton.width = "8.4375%";
+        this._dashButton.height = "15%";
         this._dashButton.color = "transparent";
         this._dashButton.onPointerDownObservable.add(() => {
             this.dashInput = true;
@@ -566,9 +577,9 @@ class TouchScreenGamepad {
 
         this._switchGunButton = Button.CreateImageWithCenterTextButton("VirtualJoystickSwitchGunButton", "", "./Sprites/SwitchGunButton.png");
         this._switchGunButton.top = "37.5%";
-        this._switchGunButton.left = "30%";
-        this._switchGunButton.width = "5.625%";
-        this._switchGunButton.height = "10%";
+        this._switchGunButton.left = "45%";
+        this._switchGunButton.width = "8.4375%";
+        this._switchGunButton.height = "15%";
         this._switchGunButton.color = "transparent";
         this._switchGunButton.onPointerDownObservable.add(() => {
             this.switchGunInput = true;
@@ -577,7 +588,10 @@ class TouchScreenGamepad {
             this.switchGunInput = false;
         });
 
-
+        gameUI.getGuiOverlayTexture().addControl(this._upButton);
+        gameUI.getGuiOverlayTexture().addControl(this._downButton);
+        gameUI.getGuiOverlayTexture().addControl(this._leftButton);
+        gameUI.getGuiOverlayTexture().addControl(this._rightButton);
         gameUI.getGuiOverlayTexture().addControl(this._jumpButton);
         gameUI.getGuiOverlayTexture().addControl(this._lightAttackButton);
         gameUI.getGuiOverlayTexture().addControl(this._heavyAttackButton);
@@ -588,5 +602,9 @@ class TouchScreenGamepad {
         this.controls.push(this._heavyAttackButton);
         this.controls.push(this._dashButton);
         this.controls.push(this._switchGunButton);
+        this.controls.push(this._upButton);
+        this.controls.push(this._downButton);
+        this.controls.push(this._leftButton);
+        this.controls.push(this._rightButton);
     }
 }

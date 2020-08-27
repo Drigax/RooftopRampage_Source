@@ -75,12 +75,25 @@ export class Player implements IDisposable {
     /* input variables */
     private _joystickLDeadZone: Vector3 = new Vector3(0.1, 0.1, 0);
     private _deviceSource: DeviceSource<any>;
+    private _useTouchscreen: boolean;
     protected _moveInput: Vector3 = new Vector3();
     protected _jumpInput: boolean;
     protected _dashInput: boolean;
     protected _lightAttackInput: boolean;
     protected _heavyAttackInput: boolean;
     protected _switchGunInput: boolean;
+
+    get deviceSource(): DeviceSource<any>{
+        return this._deviceSource;
+    }
+    set deviceSource(deviceSource: DeviceSource<any>){
+        this._deviceSource = deviceSource;
+        if (deviceSource.deviceType == DeviceType.Touch){
+            this._useTouchscreen = true;
+        } else {
+            this._useTouchscreen = false;
+        }
+    }
 
     /* player state variables */
     private _enabled: boolean;
@@ -207,12 +220,13 @@ export class Player implements IDisposable {
     public onHealthChanged: Observable<number>  = new Observable<number>();
 
     /* constructor */
-    constructor(game: Game, scene: Scene, playerIndex: number, deviceSource: DeviceSource<any>, enabled: boolean = false) {
+    constructor(game: Game, scene: Scene, playerIndex: number, deviceSource: DeviceSource<any>, enabled: boolean = false, useTouchscreen: boolean = false) {
         console.log("Adding player - " + playerIndex);
         this._game = game;
         this._scene = scene;
         this._playerIndex = playerIndex;
         this._deviceSource = deviceSource;
+        this._useTouchscreen = useTouchscreen;
         this.setEnabled(enabled);
         this._init().then(() => {
             this._scene.onBeforeRenderObservable.add(() => {
@@ -1346,7 +1360,8 @@ export class Player implements IDisposable {
     }
 
     protected _updateInput(): void {
-        switch(this._deviceSource.deviceType) {
+        let deviceType = this._useTouchscreen ? DeviceType.Touch : this.deviceSource.deviceType;
+        switch(deviceType) {
             case DeviceType.Keyboard:
                 this._moveInput.copyFromFloats(this._deviceSource.getInput(68) - this._deviceSource.getInput(65), /* D = X+, A = X- */
                                                this._deviceSource.getInput(87) - this._deviceSource.getInput(83), /* W = Y+, S = Y- */
@@ -1378,7 +1393,13 @@ export class Player implements IDisposable {
                 this._switchGunInput = this._deviceSource.getInput(SwitchInput.A) != 0;
                 break;
             case DeviceType.Touch:
-                /* todo */
+                let touchJoystick = this._game.gameUI.touchJoystick;
+                this._moveInput.copyFrom(touchJoystick.moveInput);
+                this._jumpInput = touchJoystick.jumpInput;
+                this._dashInput = touchJoystick.dashInput;
+                this._lightAttackInput = touchJoystick.lightAttackInput;
+                this._heavyAttackInput = touchJoystick.heavyAttackInput;
+                this._switchGunInput = touchJoystick.switchGunInput;
                 break;
             case DeviceType.Xbox:
             case DeviceType.Generic:

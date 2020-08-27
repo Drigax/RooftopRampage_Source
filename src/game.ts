@@ -11,6 +11,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Color3, Color4 } from "@babylonjs/core/Maths/math.color";
 import { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/loaders/glTF"
+//import "@babylonjs/inspector" // uncomment to enable inspector.
 import { Player, HitEvent } from "./player";
 import { CpuPlayer } from "./cpuPlayer";
 import { GameUI } from "./ui";
@@ -95,20 +96,31 @@ export class Game {
         this.gameUI = new GameUI(this);
 
         this.deviceSourceManager.onAfterDeviceConnectedObservable.add((device) => {
-            //if (device.deviceType == DeviceType.Mouse){
-            //    this.gameUI.createTouchJoystick();
-
             if (device.deviceType != DeviceType.Mouse ) {
                 if (device.deviceType == DeviceType.Touch ){
-                    if (this._touchDeviceConnected){
+                    if (!this._touchDeviceConnected){
                         this.gameUI.createTouchJoystick();
+                        this._touchDeviceConnected = true;
+                    } else{
                         return;
                     }
-                    this._touchDeviceConnected = true;
+                } else {
+                    if (this._touchDeviceConnected){
+                        let touchDeviceIndex = this.devices.findIndex((device) => {
+                            return device.deviceType == DeviceType.Touch;
+                        });
+                        if (touchDeviceIndex > -1){
+                            this.devices[touchDeviceIndex] = device;
+                            this.players[touchDeviceIndex].deviceSource = this.deviceSourceManager.getDeviceSource(device.deviceType, device.deviceSlot);
+                        }
+                        this.gameUI.removeTouchJoystick();
+                        this.onDeviceConnected();
+                        return;
+                    }
                 }
                 this.devices.push(device);
                 if (this.players.length < this._maxPlayers) {
-                    this.players.push(new Player(this, this.gameScene, this.players.length, this.deviceSourceManager.getDeviceSource(device.deviceType, device.deviceSlot)));
+                    this.players.push(new Player(this, this.gameScene, this.players.length, this.deviceSourceManager.getDeviceSource(device.deviceType, device.deviceSlot), false, device.deviceType == DeviceType.Touch));
                     this.onDeviceConnected();
                 }
             }
@@ -118,29 +130,23 @@ export class Game {
 
         /* show the loading screen so the user knows we're doing something */
 
-        if(this._debuggingEnabled){
-            this.gameScene.onBeforeRenderObservable.add(() => {
-                let keyboardDevice = this.deviceSourceManager.getDeviceSource(DeviceType.Keyboard);
-                if (keyboardDevice){
-                    /* toggle inspector on Ctrl+Alt+I */
-                    if (keyboardDevice.getInput(17) && keyboardDevice.getInput(18) && keyboardDevice.getInput(73)) {
-                        /*
-                        if (!this._inspectorLoaded){
-                            var script = document.createElement('script');
-                            script.setAttribute("src", "https://preview.babylonjs.com/inspector/babylon.inspector.bundle.js");
-                            this._inspectorLoaded = true;
-                        } else {
-                        */
-                        if (this.gameScene.debugLayer.isVisible()){
-                            this.gameScene.debugLayer.hide();
-                        } else {
-                            this.gameScene.debugLayer.show();
-                            //}
-                        }
+        this.gameScene.onBeforeRenderObservable.add(() => {
+            let keyboardDevice = this.deviceSourceManager.getDeviceSource(DeviceType.Keyboard);
+            if (keyboardDevice){
+
+                /* toggle inspector on Ctrl+Alt+I */
+                /* // uncomment to enable inspector.
+                if (keyboardDevice.getInput(17) && keyboardDevice.getInput(18) && keyboardDevice.getInput(73)) {
+                    if (this.gameScene.debugLayer.isVisible()){
+                        this.gameScene.debugLayer.hide();
+                    } else {
+                        this.gameScene.debugLayer.show();
+                        //}
                     }
                 }
-            });
-        }
+                */
+            }
+        });
 
         /* setup promises to load assets asynchronously */
         let promises: Promise<any>[] = [];
@@ -169,10 +175,13 @@ export class Game {
             this.gameUI.showStartMenu();
             this.gameUI.updatePlayerDevices(this.inMenu);
 
-            /* setup fullscreen game */
-            canvas.addEventListener('pointerDown', (event) => {
+            let enterFullscreen = (event) => {
+                console.log('entering fullscreen!');
                 engine.enterFullscreen(false);
-            });
+            }
+            /* setup fullscreen game */
+            canvas.addEventListener('dblclick', enterFullscreen)
+            canvas.addEventListener('touchstart', enterFullscreen);
 
             setInterval(() => {
                 engine.hideLoadingUI();
@@ -249,7 +258,6 @@ export class Game {
                         mesh.layerMask = Game.DEFAULT_LAYER;
                     }
                 }
-                console.log(mesh.name);
             });
             this.gameScene.lights.forEach((light) => {
                 light.intensity /= 10; /* Currently, blender exported intensity is 10x expected value. Possible bug? */
@@ -288,7 +296,7 @@ export class Game {
 
         for (let i = 0; i < this.devices.length && i < this._currentMaxPlayers; ++i){
             const device = this.devices[i];
-            let player = new Player(this, this.gameScene, i, this.deviceSourceManager.getDeviceSource(device.deviceType, device.deviceSlot), true);
+            let player = new Player(this, this.gameScene, i, this.deviceSourceManager.getDeviceSource(device.deviceType, device.deviceSlot), true, device.deviceType == DeviceType.Touch);
 
             this.players.push(player);
 
@@ -313,6 +321,7 @@ export class Game {
     }
 
     public startTwoPlayer(): void{
+        this._currentMaxPlayers = 2;
         this.startBattle();
     }
 
