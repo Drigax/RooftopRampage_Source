@@ -184,7 +184,12 @@ export class Game {
             let isMobile = false;
             /* mobile check */
             if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-                canvas.onpointerup = enterFullscreen;
+                canvas.addEventListener('click', enterFullscreen);
+                try{
+                    canvas.click = enterFullscreen; /* possible workaround for webkit */
+                } finally {
+
+                }
             }
 
             setInterval(() => {
