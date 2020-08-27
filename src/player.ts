@@ -958,7 +958,7 @@ export class Player implements IDisposable {
         this._shootGunAttack.spritePlayer = this._spritePlayer;
         this._shootGunAttack.from = 188;
         this._shootGunAttack.to = 199;
-        this._shootGunAttack.speed = 50;
+        this._shootGunAttack.speed = 100;
         this._shootGunAttack.canCancelAfter = 197;
         this._shootGunAttack.loop = false;
         this._shootGunAttack.start = function ()
@@ -998,7 +998,7 @@ export class Player implements IDisposable {
         this._shootGunPos45Attack.spritePlayer = this._spritePlayer;
         this._shootGunPos45Attack.from = 200;
         this._shootGunPos45Attack.to = 211;
-        this._shootGunPos45Attack.speed = 50;
+        this._shootGunPos45Attack.speed = 100;
         this._shootGunPos45Attack.canCancelAfter = 209;
         this._shootGunPos45Attack.loop = false;
         this._shootGunPos45Attack.start = function ()
@@ -1039,7 +1039,7 @@ export class Player implements IDisposable {
         this._jumpShootGunAttack.spritePlayer = this._spritePlayer;
         this._jumpShootGunAttack.from = 212;
         this._jumpShootGunAttack.to = 223;
-        this._jumpShootGunAttack.speed = 50;
+        this._jumpShootGunAttack.speed = 100;
         this._jumpShootGunAttack.canCancelAfter = 220;
         this._jumpShootGunAttack.loop = false;
         this._jumpShootGunAttack.start = function ()
@@ -1082,7 +1082,7 @@ export class Player implements IDisposable {
         this._jumpShootGunPos45Attack.spritePlayer = this._spritePlayer;
         this._jumpShootGunPos45Attack.from = 224;
         this._jumpShootGunPos45Attack.to = 235;
-        this._jumpShootGunPos45Attack.speed = 50;
+        this._jumpShootGunPos45Attack.speed = 100;
         this._jumpShootGunPos45Attack.canCancelAfter = 232;
         this._jumpShootGunPos45Attack.loop = false;
         this._jumpShootGunPos45Attack.start = function ()
@@ -1126,7 +1126,7 @@ export class Player implements IDisposable {
         this._jumpShootGunNeg45Attack.spritePlayer = this._spritePlayer;
         this._jumpShootGunNeg45Attack.from = 236;
         this._jumpShootGunNeg45Attack.to = 247;
-        this._jumpShootGunNeg45Attack.speed = 50;
+        this._jumpShootGunNeg45Attack.speed = 100;
         this._jumpShootGunNeg45Attack.canCancelAfter = 243;
         this._jumpShootGunNeg45Attack.loop = false;
         this._jumpShootGunNeg45Attack.start = function ()
