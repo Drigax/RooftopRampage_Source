@@ -33,11 +33,11 @@ module.exports = {
         ]
     },
     plugins: [
-        //new CopyWebpackPlugin({ //uncomment for for production build.
-        //    patterns: [
-        //        { from: 'public' }
-        //    ]
-        //}),
+        new CopyWebpackPlugin({ //uncomment for for production build.
+            patterns: [
+                { from: 'public' }
+            ]
+        }),
         new HtmlWebpackPlugin({
             inject: true,
             template: path.resolve(appDirectory, "public/index.html")
