@@ -3,9 +3,11 @@ import { Player } from "./player"
 import { AdvancedDynamicTexture, Grid, Image, GUI3DManager, Button, Control, TextBlock, Ellipse } from "@babylonjs/gui"
 import { Sound } from "@babylonjs/core/Audio"
 import { DeviceType } from "@babylonjs/core/DeviceInput"
+import { Effect } from "@babylonjs/core/materials"
+import { PostProcess } from "@babylonjs/core/PostProcesses"
 import { Scene } from "@babylonjs/core/scene"
 import { VirtualJoystick } from "@babylonjs/core/Misc"
-import { Vector3 } from "@babylonjs/core/Maths"
+import { Vector2, Vector3 } from "@babylonjs/core/Maths"
 
 export class GameUI {
     private _game : Game;
@@ -59,6 +61,28 @@ export class GameUI {
     /* virtual joystick */
     private _touchJoystick : TouchScreenGamepad;
 
+    /* postProcessEffects */
+    private _screenCurvatureOn : Vector2 = new Vector2(4.0, 4.0);
+    private _scanLineOpacityOn : Vector2 = new Vector2(0.25, 0.25);
+    private _vignetteOpacityOn : number = 1;
+    private _brightnessOn : number = 1.5;
+    private _vignetteRoundnessOn : number = 1;
+
+    private _screenCurvatureOff : Vector2 = new Vector2(100.0, 100.0);
+    private _scanLineOpacityOff : Vector2 = new Vector2(0, 0);
+    private _vignetteOpacityOff : number = 0;
+    private _brightnessOff : number = 1;
+    private _vignetteRoundnessOff : number = 100;
+
+    private _screenCurvature : Vector2 = new Vector2();
+    private _scanLineOpacity : Vector2 = new Vector2();
+    private _vignetteOpacity : number = 0;
+    private _brightness : number = 0;
+    private _vignetteRoundness : number = 0;
+
+    private _crtShaderEnabled : boolean = false;
+    private _shaderToggleTimeout : boolean = false;
+    private _shaderToggleTimeoutDuration : number = 333; //duration in ms
 
     private _noDeviceConnectedText: string = "Press Any Button To Join!";
 
@@ -432,6 +456,45 @@ export class GameUI {
     get touchJoystick(): TouchScreenGamepad{
         return this._touchJoystick;
     }
+
+    public addCRTShaderPostProcess(): void {
+        var postProcess = new PostProcess("CRTShaderPostProcess", "./Shaders/crt", ["curvature", "screenResolution", "scanLineOpacity", "vignetteOpacity", "brightness", "vignetteRoundness"], null, 1.0, this.getGame().mainCamera);
+        postProcess.onApply = (effect) => {
+            let canvas = effect.getEngine().getRenderingCanvas()
+            effect.setFloat2("curvature", this._screenCurvature.x, this._screenCurvature.y);
+            effect.setFloat2("screenResolution", canvas.width/3, canvas.height/3);
+            effect.setFloat2("scanLineOpacity", this._scanLineOpacity.x, this._scanLineOpacity.y);
+            effect.setFloat("vignetteOpacity", this._vignetteOpacity);
+            effect.setFloat("brightness", this._brightness);
+            effect.setFloat("vignetteRoundness", this._vignetteRoundness)
+        };
+        this.toggleCRTShaderEffect();
+    }
+
+    public toggleCRTShaderEffect(): void {
+        if (this._shaderToggleTimeout){
+            return;
+        }
+        this._shaderToggleTimeout = true;
+        let interval = setInterval(() => {
+            clearInterval(interval);
+            this._shaderToggleTimeout = false;
+        }, this._shaderToggleTimeoutDuration);
+        this._crtShaderEnabled = !this._crtShaderEnabled
+        if (this._crtShaderEnabled){
+            this._screenCurvature.copyFrom(this._screenCurvatureOn);
+            this._scanLineOpacity.copyFrom(this._scanLineOpacityOn);
+            this._vignetteOpacity = this._vignetteOpacityOn;
+            this._brightness = this._brightnessOn;
+            this._vignetteRoundness = this._vignetteRoundnessOn;
+        } else {
+            this._screenCurvature.copyFrom(this._screenCurvatureOff);
+            this._scanLineOpacity.copyFrom(this._scanLineOpacityOff);
+            this._vignetteOpacity = this._vignetteOpacityOff;
+            this._brightness = this._brightnessOff;
+            this._vignetteRoundness = this._vignetteRoundnessOff;
+        }
+    }
 }
 
 class TouchScreenGamepad {
@@ -477,6 +540,7 @@ class TouchScreenGamepad {
         this._upButton.color = "transparent";
         this._upButton.onPointerDownObservable.add(() => {
             this.upInput = true;
+            this.downInput = false;
         });
         this._upButton.onPointerUpObservable.add(() => {
             this.upInput = false;
@@ -490,6 +554,7 @@ class TouchScreenGamepad {
         this._downButton.color = "transparent";
         this._downButton.onPointerDownObservable.add(() => {
             this.downInput = true;
+            this.upInput = false;
         });
         this._downButton.onPointerUpObservable.add(() => {
             this.downInput = false;
@@ -503,6 +568,7 @@ class TouchScreenGamepad {
         this._leftButton.color = "transparent";
         this._leftButton.onPointerDownObservable.add(() => {
             this.leftInput = true;
+            this.rightInput = false;
         });
         this._leftButton.onPointerUpObservable.add(() => {
             this.leftInput = false;
@@ -516,6 +582,7 @@ class TouchScreenGamepad {
         this._rightButton.color = "transparent";
         this._rightButton.onPointerDownObservable.add(() => {
             this.rightInput = true;
+            this.leftInput = false;
         });
         this._rightButton.onPointerUpObservable.add(() => {
             this.rightInput = false;

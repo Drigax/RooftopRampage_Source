@@ -145,6 +145,11 @@ export class Game {
                     }
                 }
                 */
+
+                /* toggle game shder on Ctrl+Alt+S */
+                if (keyboardDevice.getInput(17) && keyboardDevice.getInput(18) && keyboardDevice.getInput(83)) {
+                    this.gameUI.toggleCRTShaderEffect();
+                }
             }
         });
 
@@ -168,6 +173,8 @@ export class Game {
             //this.resizeCanvas(this.canvas);
             this.engine.resize();
         });
+
+        this.gameUI.addCRTShaderPostProcess();
 
         /* once we're done loading in all our dependencies, initialize the game then hide the loading UI */
         Promise.all(promises).then(() => {
